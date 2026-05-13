@@ -1,0 +1,13 @@
+[project]
+name = "langur-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=1.0.0",
+    "prompt-toolkit>=3.0.52",
+    "pyyaml>=6.0",
+    "rich>=15.0.0",
+    "xdg-base-dirs>=6.0.2",
+]
