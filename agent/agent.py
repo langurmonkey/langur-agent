@@ -54,7 +54,7 @@ class Agent:
         try:
             self.client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
         except openai.OpenAIError as err:
-            print(f"[red]Error[/red]: OpenAI endpoint creation: {err}")
+            print(f"[red]ERROR[/red]: OpenAI endpoint creation: {err}")
             raise Exception(f"{err}")
 
         # Agent settings
@@ -76,7 +76,7 @@ class Agent:
         try:
             self.encoding = tiktoken.get_encoding(encoding_name)
         except Exception as e:
-            print(f"[red]Error[/red]: Error loading tokenizer: {e}")
+            print(f"[red]ERROR[/red]: Error loading tokenizer: {e}")
             raise Exception(f"{e}")
 
     def _build_system_prompt(self):
@@ -195,37 +195,6 @@ class Agent:
         gen_elapsed = time.time() - start
         return (response.choices[0].message, tokens, gen_elapsed)
 
-    def _handle_tool_calls(self, message):
-        """Process tool calls from the LLM response."""
-        tool_calls = message.tool_calls
-        if not tool_calls:
-            return None
-
-        # Append the assistant message
-        self.messages.append({
-            "role": "assistant",
-            "content": None,
-            "tool_calls": tool_calls,
-        })
-
-        # Execute each tool call
-        for call in tool_calls:
-            print
-            tool_name = call.function.name
-            tool_args = json.loads(call.function.arguments)
-
-            print(f"{col.BGGRAY}Activating tool: {tool_name}{col.END}")
-            result = execute_tool(tool_name, tool_args)
-
-            # Append tool result
-            self.messages.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": result,
-            })
-
-        return True
-
     def run(self, user_input):
         """Run a turn interaction with a user message.
 
@@ -253,10 +222,7 @@ class Agent:
         total_gen_time = 0
         # Tool usages
         ntools = 0
-        # Number of turns
-        nturns = 0
         for turn in range(self.max_turns):
-            nturns += 1
             # Send to LLM
             (result, tokens, gen_elapsed) = self._send_to_llm(stream=self.stream)
             total_tokens += tokens
@@ -302,11 +268,11 @@ class Agent:
 
                 # Execute each tool call
                 for tc in tool_calls:
-                    tools = tools + 1
+                    ntools = ntools + 1
                     tool_name = tc["function"]["name"]
                     tool_args = tc["function"]["arguments"]
 
-                    print(f"[gray]☛ Activating tool: {tool_name}[/gray]")
+                    print(f"[black on #66aa99] ⚙ Activating tool: {tool_name} [/black on #66aa99]")
                     result = execute_tool(tool_name, json.loads(tool_args) if isinstance(tool_args, str) else tool_args)
 
                     # Append tool result
@@ -381,26 +347,29 @@ class Agent:
                 continue
 
             # SPECIAL COMMANDS
-            if user_input.lower() in ("/quit", "/exit", "/q"):
-                print(f"\n[bold blue]Goodbye![/]")
-                break
-            elif user_input.lower() in ("/tools"):
-                log_tools()
-                continue
-            elif user_input.lower() in ("/skills"):
-                self.skills.log_skills()
-                continue
-            elif user_input.lower() in ("/config"):
-                log_config()
-                continue
-            elif user_input.lower() in ("/help", "/commands"):
-                self.print_help()
-                continue
+            if user_input.startswith("/") and len(user_input.split()) == 1:
+                if user_input.lower() in ["/quit", "/exit", "/q"]:
+                    print(f"\n[bold blue]Goodbye![/]")
+                    break
+                elif user_input.lower() in ["/tools"]:
+                    log_tools()
+                elif user_input.lower() in ["/skills"]:
+                    self.skills.log_skills()
+                elif user_input.lower() in ["/config"]:
+                    log_config()
+                elif user_input.lower() in ["/help", "/commands"]:
+                    self.print_help()
+                else:
+                    print(f"[red]ERROR:[/red] unknown command: {user_input}")
+                    print()
+                    print("Avaliable commands:")
+                    self.print_help()
+            else:
 
-            print(f"\n[magenta]:: Agent :: [/magenta]\n", end="", flush=True)
-            (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
-            print()
-            self._statusline(total_tokens, ntools, total_gen_time)
+                print(f"\n[magenta]:: Agent :: [/magenta]\n", end="", flush=True)
+                (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
+                print()
+                self._statusline(total_tokens, ntools, total_gen_time)
 
         # Persist memory on session exit
         self.memory.save()

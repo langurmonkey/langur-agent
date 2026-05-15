@@ -8,6 +8,7 @@ Security: commands run in the current working directory.
 
 import subprocess
 import json
+from rich import print
 from agent.tools import register_tool
 
 
@@ -20,6 +21,7 @@ def run_command_handler(args):
         return {"error": "No command provided"}
 
     try:
+        print(f"  [white on #444444] [bold]$[/bold] {command} [/white on #444444]")
         result = subprocess.run(
             command,
             shell=True,
