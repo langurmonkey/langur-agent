@@ -10,6 +10,10 @@ The agent:
 import json
 import os
 import sys
+import time
+# Counting tokens
+import tiktoken
+
 from rich import print, box, inspect
 from rich.prompt import Prompt
 from rich.panel import Panel
@@ -32,7 +36,6 @@ try:
     _HAS_PROMPT_TOOLKIT = True
 except ImportError:
     _HAS_PROMPT_TOOLKIT = False
-
 
 class Agent:
     """Simple LLM agent with tools, skills, and memory."""
@@ -59,13 +62,22 @@ class Agent:
         self.max_turns = agent_cfg.get("max_turns", 50)
         self.personality = agent_cfg.get("system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
         self.stream = agent_cfg.get("stream", True)
+        max_chat_history = agent_cfg.get("max_chat_history", 128000)
 
         # Initialize subsystems
-        self.memory = Memory()
+        self.memory = Memory(max_chat_history=max_chat_history)
         self.skills = SkillLoader()
 
         # Conversation history
         self.messages = []
+
+        # Initialize tokenizer for token-counting
+        encoding_name = "cl100k_base"
+        try:
+            self.encoding = tiktoken.get_encoding(encoding_name)
+        except Exception as e:
+            print(f"[red]Error[/red]: Error loading tokenizer: {e}")
+            raise Exception(f"{e}")
 
     def _build_system_prompt(self):
         """Build the system prompt with personality, skills, and memory."""
@@ -75,6 +87,11 @@ class Agent:
         memory_text = self.memory.get_formatted()
         if memory_text:
             parts.append(memory_text)
+
+        # Add chat history
+        chat_text = self.memory.get_formatted_chat()
+        if chat_text:
+            parts.append(chat_text)
 
         # Add skills
         skills_text = self.skills.load_all()
@@ -92,6 +109,7 @@ class Agent:
                     return the raw message object.
         """
         tools = get_tool_schemas()
+        start = time.time()
 
         try:
             response = self.client.chat.completions.create(
@@ -110,13 +128,21 @@ class Agent:
             # Collect streamed tokens and tool calls
             full_text = ""
             tool_calls = {}  # indexed by position to merge partial deltas
+            first_chunk_time = None
 
             for chunk in response:
                 delta = chunk.choices[0].delta
+                now = time.time()
+
+                # Track when first chunk arrives (excludes request send time)
+                if first_chunk_time is None:
+                    first_chunk_time = now
 
                 # Collect text
                 if delta.content:
                     full_text += delta.content
+
+                    # Print text
                     print(delta.content, end="", flush=True)
 
                 # Collect tool calls
@@ -134,13 +160,28 @@ class Agent:
                         if tc.function.arguments:
                             tool_calls[idx]["function"]["arguments"] += tc.function.arguments
 
-            print()  # newline after streaming
+            # Newline
+            print()
+
+            # Count tokens using tiktoken (LM Studio streaming doesn't include usage)
+            tokens = 0
+            if self.encoding and full_text:
+                tokens = len(self.encoding.encode(full_text))
+
+            # Elapsed time: from first chunk to last chunk (generation time only)
+            if first_chunk_time is not None:
+                gen_elapsed = now - first_chunk_time
+            else:
+                gen_elapsed = time.time() - start
+            if gen_elapsed <= 0:
+                gen_elapsed = 1  # avoid division by zero
+            
+            # No debug output
 
             # Convert indexed dict to list
             tc_list = list(tool_calls.values()) if tool_calls else None
 
-            return {"text": full_text, "tool_calls": tc_list}
-
+            return ({"text": full_text, "tool_calls": tc_list}, tokens, gen_elapsed)
         # Non-streaming: return message object
         if not response.choices:
             raise RuntimeError(
@@ -150,7 +191,9 @@ class Agent:
                 f"Response: {response}"
             )
 
-        return response.choices[0].message
+        tokens = response.choices[0].message.usage.completion_tokens
+        gen_elapsed = time.time() - start
+        return (response.choices[0].message, tokens, gen_elapsed)
 
     def _handle_tool_calls(self, message):
         """Process tool calls from the LLM response."""
@@ -184,7 +227,7 @@ class Agent:
         return True
 
     def run(self, user_input):
-        """Run the agent loop with a user message.
+        """Run a turn interaction with a user message.
 
         Args:
             user_input: The user's message string.
@@ -192,15 +235,32 @@ class Agent:
         Returns:
             The final text response from the LLM.
         """
+        # Record start time
+        start = time.time()
+
+        # Record user input in chat memory
+        self.memory.add_chat_exchange("user", user_input)
+
         # Initialize with system prompt
         self.messages = [
             {"role": "system", "content": self._build_system_prompt()},
             {"role": "user", "content": user_input},
         ]
 
+        # Total token count
+        total_tokens = 0
+        # Total generation time (excludes network latency, prompt building, etc.)
+        total_gen_time = 0
+        # Tool usages
+        ntools = 0
+        # Number of turns
+        nturns = 0
         for turn in range(self.max_turns):
+            nturns += 1
             # Send to LLM
-            result = self._send_to_llm(stream=self.stream)
+            (result, tokens, gen_elapsed) = self._send_to_llm(stream=self.stream)
+            total_tokens += tokens
+            total_gen_time += gen_elapsed
 
             # Normalize tool calls from both streaming (plain dicts) and
             # non-streaming (OpenAI API objects) into a common format
@@ -242,6 +302,7 @@ class Agent:
 
                 # Execute each tool call
                 for tc in tool_calls:
+                    tools = tools + 1
                     tool_name = tc["function"]["name"]
                     tool_args = tc["function"]["arguments"]
 
@@ -259,12 +320,22 @@ class Agent:
 
             # No tool calls - this is the final response
             self.messages.append({"role": "assistant", "content": response_text})
+            
+            # Record assistant output in chat memory
+            self.memory.add_chat_exchange("assistant", response_text)
+            # Persist memory
             self.memory.save()
-            return response_text
+            
+            return (response_text, total_tokens, ntools, total_gen_time)
 
-        # Max turns reached
+        # Max turns reached!
+        # Persist memory
         self.memory.save()
         return "I've reached the maximum number of turns. Please rephrase your request."
+
+    def _statusline(self, total_tokens, ntools, total_gen_time):
+        print(f"[black on #777777]  ⬤  {total_gen_time:.1f}s  ⬤  {total_tokens} tokens  ⬤  {ntools} tools  [/black on #777777]")
+        print()
 
     def print_help(self):
         print(f"⬤ [green]/q[/], [green]/quit[/], [green]/exit[/]   → exit")
@@ -278,14 +349,13 @@ class Agent:
     def run_interactive(self):
         """Run the agent in interactive mode."""
         title = Align.center("[bold blue]LANGUR AGENT[/bold blue]", vertical='middle')
-        print(Panel(title, box=box.HEAVY, subtitle="The dead-simple AI agent for local workflows"))
+        print(Panel(title, box=box.HEAVY, subtitle="The dead-simple AI agent for local workflows", border_style="yellow"))
         print()
         self.print_help()
 
         # Set up prompt_toolkit if available
         history_path = xdg_data_home() / "langur-agent" / "history.txt"
         history_path.parent.mkdir(parents=True, exist_ok=True)
-
 
         if _HAS_PROMPT_TOOLKIT:
             style = Style.from_dict({
@@ -328,8 +398,9 @@ class Agent:
                 continue
 
             print(f"\n[magenta]:: Agent :: [/magenta]\n", end="", flush=True)
-            response = self.run(user_input)
+            (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
             print()
+            self._statusline(total_tokens, ntools, total_gen_time)
 
         # Persist memory on session exit
         self.memory.save()

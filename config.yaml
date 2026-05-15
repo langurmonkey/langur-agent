@@ -7,9 +7,10 @@ model:
   # Local API key
   api_key: ""
   base_url: "http://127.0.0.1:1234/v1"
-  context_length: 262144
 
 agent:
   max_turns: 50
   system_prompt: "You are a helpful assistant, expert in many domains of science and engineering. Respond concisely and clearly. No fluff. Ask for clarification if needed. Do not invent. On first interaction, analyze the user's message for their name, role, interests, and preferences. Record them with set_user_profile."
   stream: true
+  # Length of chat history kept for context, in characters
+  max_chat_history: 128000

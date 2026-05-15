@@ -87,7 +87,11 @@ def discover_tools(tools_dir=None):
     if _discovered:
         return
 
-    tools_path = Path(tools_dir) if tools_dir else Path(__file__).parent.parent / "tools"
+    tools_path = Path(tools_dir) if tools_dir else None
+
+    if not tools_path:
+        # Default: look in the package's tools/ directory
+        tools_path = Path(__file__).parent.parent / "tools"
 
     if not tools_path.exists():
         _discovered = True

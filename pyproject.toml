@@ -1,7 +1,7 @@
 [project]
 name = "langur-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "A dead-simple, extensible AI agent for local workflows"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,5 +9,16 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
     "pyyaml>=6.0",
     "rich>=15.0.0",
+    "tiktoken>=0.13.0",
     "xdg-base-dirs>=6.0.2",
 ]
+
+[project.scripts]
+langur-agent = "agent.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent", "tools"]
