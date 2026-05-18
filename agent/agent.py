@@ -343,7 +343,6 @@ class Agent:
 
         # Slash commands autocompleter
         commands = [cmd.name for cmd in registry.list_commands()]
-        print(commands)
         slash_completer = FuzzyWordCompleter(commands)
 
         # History path

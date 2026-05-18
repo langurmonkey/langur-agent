@@ -51,12 +51,6 @@ uv run langur-agent
 
 On first run, the configuration is created in `$XDG_CONFIG_HOME/langur-agent/config.yaml`.
 
-Edit with (Linux):
-
-```bash
-nano ~/.config/langur-agent/config.yaml
-```
-
 It works with any OpenAI-compatible endpoint, so LM Studio, Ollama, OpenWebUI, or whatever you point it to that talks OpenAI. Here are the default values:
 
 ```yaml
