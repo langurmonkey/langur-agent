@@ -14,3 +14,5 @@ agent:
   stream: true
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
+  # Enable vi mode for input
+  vi_mode: false

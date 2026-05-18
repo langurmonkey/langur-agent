@@ -27,14 +27,21 @@ from agent.config import load_config, log_config
 from agent.memory import Memory
 from agent.skills import SkillLoader
 from agent.tools import get_tool_schemas, execute_tool, log_tools
+from agent.commands import registry
 
 # Try to import prompt_toolkit for rich input; fall back to plain input.
 try:
-    from prompt_toolkit import prompt
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
     from prompt_toolkit.styles import Style
+    from prompt_toolkit.completion import FuzzyWordCompleter
+    from prompt_toolkit.formatted_text import HTML
     _HAS_PROMPT_TOOLKIT = True
+
 except ImportError:
+    print("[red]ERROR:[/red] could not initialize promtp toolkit")
     _HAS_PROMPT_TOOLKIT = False
 
 class Agent:
@@ -304,14 +311,64 @@ class Agent:
         print()
 
     def print_help(self):
-        print(f"⬤ [green]/q[/], [green]/quit[/], [green]/exit[/]   → exit")
-        print(f"⬤ [green]/tools[/]             → list tools")
-        print(f"⬤ [green]/skills[/]            → list skills")
-        print(f"⬤ [green]/config[/]            → print configuration")
-        print(f"⬤ [green]/help[/], [green]/commands[/]   → print command help")
+        for cmd in registry.list_commands():
+            aliases = ", ".join(f"[green]{a}[/]" for a in cmd.aliases)
+            primary = f"[green]{cmd.name}[/]"
+            if aliases:
+                names = f"{primary}, {aliases}"
+            else:
+                names = primary
+            print(f"⬤ {names} → {cmd.description}")
         print()
         
+    def _create_prompt_session(self):
+        # Key bindings: 
+        kb = KeyBindings()
+        @kb.add('enter')
+        def _(event):
+            """Enter submits the input."""
+            event.current_buffer.validate_and_handle()
+        @kb.add('escape', 'enter')
+        def _(event):
+            """Alt+Enter inserts a newline."""
+            event.current_buffer.insert_text('\n')
 
+        # Create prompt session now
+        style = Style.from_dict({
+            "prompt": "ansiyellow",
+        })
+
+        # Vi mode
+        vi_mode = self.config.get("agent").get("vi_mode", False)
+
+        # Slash commands autocompleter
+        commands = [cmd.name for cmd in registry.list_commands()]
+        print(commands)
+        slash_completer = FuzzyWordCompleter(commands)
+
+        # History path
+        history_path = xdg_data_home() / "langur-agent" / "history.txt"
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Toolbar
+        prompt_toolbar = lambda : HTML(" <b>Alt</b>+<b>Enter</b>: new line | <b>Enter</b>: submit prompt")
+
+        self._session = PromptSession(
+                    style=style,
+                    message="⩥ You ⩤\n❯ ",
+                    history=FileHistory(str(history_path)),
+                    show_frame=True,
+                    multiline=True,
+                    key_bindings=kb,
+                    vi_mode=vi_mode,
+                    enable_open_in_editor=vi_mode,
+                    complete_while_typing=True,        
+                    complete_in_thread=True,
+                    completer=slash_completer,
+                    auto_suggest=AutoSuggestFromHistory(),
+                    bottom_toolbar=prompt_toolbar,
+        )
+        
     def run_interactive(self):
         """Run the agent in interactive mode."""
         title = Align.center("[bold blue]LANGUR AGENT[/bold blue]", vertical='middle')
@@ -319,22 +376,19 @@ class Agent:
         print()
         self.print_help()
 
-        # Set up prompt_toolkit if available
-        history_path = xdg_data_home() / "langur-agent" / "history.txt"
-        history_path.parent.mkdir(parents=True, exist_ok=True)
 
         if _HAS_PROMPT_TOOLKIT:
+            self._create_prompt_session()
+        
+        if self._session:
             style = Style.from_dict({
                 "prompt": "ansiyellow",
             })
             get_input = lambda: str(
-                prompt(style=style,
-                       message=":: You ::\n❯ ",
-                       history=FileHistory(str(history_path)),
-                       complete_while_typing=True)
+                self._session.prompt()
             ).strip()
         else:
-            get_input = lambda: Prompt.ask("[yellow]:: You ::[/]\n❯ ")
+            get_input = lambda: Prompt.ask("[yellow]⩥ You ⩤[/yellow]\n❯ ")
 
         while True:
             try:
@@ -347,26 +401,22 @@ class Agent:
                 continue
 
             # SPECIAL COMMANDS
-            if user_input.startswith("/") and len(user_input.split()) == 1:
-                if user_input.lower() in ["/quit", "/exit", "/q"]:
+            if user_input.startswith("/"):
+                tokens = user_input.split()
+                command = tokens[0]
+                params = tokens[1:] if len(tokens) > 1 else []
+
+                result, should_exit = registry.execute(self, command, params)
+                if should_exit:
                     print(f"\n[bold blue]Goodbye![/]")
                     break
-                elif user_input.lower() in ["/tools"]:
-                    log_tools()
-                elif user_input.lower() in ["/skills"]:
-                    self.skills.log_skills()
-                elif user_input.lower() in ["/config"]:
-                    log_config()
-                elif user_input.lower() in ["/help", "/commands"]:
-                    self.print_help()
-                else:
-                    print(f"[red]ERROR:[/red] unknown command: {user_input}")
+                if result:
+                    print(result)
                     print()
-                    print("Avaliable commands:")
-                    self.print_help()
+                continue
             else:
 
-                print(f"\n[magenta]:: Agent :: [/magenta]\n", end="", flush=True)
+                print(f"\n[magenta]⩥ Agent ⩤ [/magenta]  ⦗[blue]{self.model}[/blue]⦘\n", end="", flush=True)
                 (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
                 print()
                 self._statusline(total_tokens, ntools, total_gen_time)

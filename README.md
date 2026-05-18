@@ -8,8 +8,7 @@ Langur Agent is a simple, open, hackable CLI AI agent for Linux. It supports **t
 - [Usage and commands](#usage-and-commands)
 - [Global memory](#global-memory)
 - [Rolling chat memory](#rolling-chat-memory)
-- [Adding tools](#adding-tools)
-- [Adding skills](#adding-skills)
+- [Extend agent](#extend-agent)
 
 ## Quickstart
 
@@ -149,8 +148,13 @@ The capital of France is Paris.
 ---
 ```
 
+## Extend agent
 
-## Adding tools
+Langur Agent can be easily customized and extended by adding new tools and skills.
+
+If you create a cool new tool or skill, consider contributing it via a pull request!
+
+### Adding tools
 
 Create a file in `tools/` and call `register_tool()`:
 
@@ -174,7 +178,7 @@ register_tool(
 
 Tools are auto-discovered on startup.
 
-## Adding skills
+### Adding skills
 
 Add a `.md` file in `skills/` with YAML front matter, following the [agentskills.io](https://agentskills.io) standard:
 
