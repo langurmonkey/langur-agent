@@ -1,11 +1,11 @@
-<h3 align="center"><img src="icon.png" alt="Langur Agent" width="130px"><br>Langur Agent - <i>A dead-simple CLI agent for Linux</i></h3>
+<h3 align="center"><img src="icon.png" alt="Langur Agent" width="130px"><br>Langur Agent - <i>A dead simple CLI agent for Linux</i></h3>
 
-Langur Agent is a simple, extensible, open CLI AI agent for Linux. It supports **tools**, **skills**, and **persistent memory**. Created as a learning tool. Connects to any service providing an OpenAI-compatible endpoint.
+Langur Agent is a simple, open, hackable CLI AI agent for Linux. It supports **tools**, **skills**, and **persistent memory**. It connects to any service providing an OpenAI-compatible endpoint.
 
 - [Quickstart](#quickstart)
 - [Run from source](#run-from-source)
 - [Configuration](#configuration)
-- [Commands](#commands)
+- [Usage and commands](#usage-and-commands)
 - [Global memory](#global-memory)
 - [Rolling chat memory](#rolling-chat-memory)
 - [Adding tools](#adding-tools)
@@ -15,13 +15,13 @@ Langur Agent is a simple, extensible, open CLI AI agent for Linux. It supports *
 
 Langur Agent has been tested on Linux only. It may work on macOS, but there are no guarantees.
 
-You can install the agent with:
+Install the agent with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jumpinglangur/langur-agent/main/install.sh | bash
 ```
 
-Then, add your API key (if any), and run.
+Add your API key (if any), and run.
 
 ```bash
 # Set API key:
@@ -29,7 +29,7 @@ export LANGUR_API_KEY=your-api-key
 # Run the agent:
 langur-agent
 ```
-
+![Langur Agent welcome text](screenshot.jpg "Langur Agent welcome screen")
 
 ## Run from source
 
@@ -72,18 +72,34 @@ agent:
   stream: true
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
+  # Enable/disable vi mode for input
+  vi_mode: false
 ```
 
-## Commands
+## Usage and commands
+
+Run the agent, and then you can enter your prompt. The input is multiline: Use <kbd>Alt</kbd> + <kbd>Enter</kbd> to add a new line. Use <kbd>Enter</kbd> to submit the prompt.
+
+### `vi` mode
+
+You can enable `vi` mode for the current session with the [command](#commands) `/vi on`, or permanently in the [configuration](#configuration).
+
+**External editor**---In `vi` mode, exit insert mode (<kbd>Esc</kbc>) and press <kbd>v</kbd> to edit your prompt in an external editor (uses your `$VISUAL` or `$EDITOR` variable).
+
+### Commands
 
 There are a few commands available to use in the agent loop:
 
 | Command | Description |
 | :--- | :--- |
 | `/q`, `/quit`, `/exit` | exit |
+| `/note` your note | create a note in the memory |
+| `/notes` | list current notes |
+| `/memory` | list memory contents (user profile, notes, chat memory) |
 | `/tools` | list tools |
 | `/skills` | list skills |
 | `/config` | print configuration |
+| `/vi` on|off | enable/disable vi-mode input |
 | `/help`, `/commands` | print command help |
 
 ## Global memory
