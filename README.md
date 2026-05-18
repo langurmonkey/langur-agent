@@ -28,7 +28,13 @@ export LANGUR_API_KEY=your-api-key
 # Run the agent:
 langur-agent
 ```
-![Langur Agent welcome text](screenshot.jpg "Langur Agent welcome screen")
+
+<p align="center">
+<img src="screenshot.jpg" 
+        alt="Picture"
+        style="display: block; margin: 0 auto" />
+</p>
+
 
 ## Run from source
 
