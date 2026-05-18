@@ -5,6 +5,7 @@ Langur Agent is a simple, extensible, open CLI AI agent for Linux. It supports *
 - [Quickstart](#quickstart)
 - [Run from source](#run-from-source)
 - [Configuration](#configuration)
+- [Commands](#commands)
 - [Global memory](#global-memory)
 - [Rolling chat memory](#rolling-chat-memory)
 - [Adding tools](#adding-tools)
@@ -23,9 +24,9 @@ curl -fsSL https://raw.githubusercontent.com/jumpinglangur/langur-agent/main/ins
 Then, add your API key (if any), and run.
 
 ```bash
-# Set API key
+# Set API key:
 export LANGUR_API_KEY=your-api-key
-# Run the agent
+# Run the agent:
 langur-agent
 ```
 
@@ -33,11 +34,11 @@ langur-agent
 ## Run from source
 
 ```bash
-# Clone the repo, then build
+# Clone the repo, then build the project:
 uv build
-# Set API key
+# Set API key:
 export LANGUR_API_KEY=your-api-key
-# Run the agent
+# Run the agent:
 uv run langur-agent
 ```
 
@@ -51,7 +52,7 @@ Edit with (Linux):
 nano ~/.config/langur-agent/config.yaml
 ```
 
-It works with any OpenAI-compatible API, so LM Studio, Ollama, OpenRouter, or whatever you point it to that talks OpenAI. Here are the default values:
+It works with any OpenAI-compatible endpoint, so LM Studio, Ollama, OpenWebUI, or whatever you point it to that talks OpenAI. Here are the default values:
 
 ```yaml
 # Langur Agent Configuration
@@ -72,6 +73,18 @@ agent:
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
 ```
+
+## Commands
+
+There are a few commands available to use in the agent loop:
+
+| Command | Description |
+| :--- | :--- |
+| `/q`, `/quit`, `/exit` | exit |
+| `/tools` | list tools |
+| `/skills` | list skills |
+| `/config` | print configuration |
+| `/help`, `/commands` | print command help |
 
 ## Global memory
 
