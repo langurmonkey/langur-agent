@@ -26,8 +26,7 @@ def main():
         pkg_version = __version__
 
     parser = argparse.ArgumentParser(
-        description="Langur Agent - AI assistant",
-        version=pkg_version
+        description="Langur Agent - Simple and hackable AI assistant",
     )
     parser.add_argument(
         "-c", "--config",
@@ -39,6 +38,10 @@ def main():
         nargs=argparse.REMAINDER,
         help="One-shot query (if provided, runs once and exits)",
     )
+    parser.add_argument(
+        '-V', '-v', '--version',
+        action='version',
+        version="%(prog)s ("+pkg_version+")")
     args = parser.parse_args()
 
     try:

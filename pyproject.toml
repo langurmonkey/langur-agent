@@ -1,6 +1,6 @@
 [project]
 name = "langur-agent"
-version = "0.1.0"
+version = "2026.05.19"
 description = "A dead-simple, extensible AI agent for local workflows"
 readme = "README.md"
 requires-python = ">=3.13"
