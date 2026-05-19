@@ -43,7 +43,29 @@ def main():
         '-V', '-v', '--version',
         action='version',
         version="%(prog)s ("+pkg_version+")")
+    parser.add_argument(
+        '--update',
+        action='store_true',
+        help='Update langur-agent from upstream and reinstall',
+    )
     args = parser.parse_args()
+
+    # Handle --update
+    if args.update:
+        import subprocess
+        from xdg_base_dirs import xdg_data_home
+        
+        XDG_DATA = xdg_data_home() or str(Path.home() / ".local" / "share")
+        install_dir = f"{XDG_DATA}/langur-agent/repository"
+        if not Path(install_dir).exists():
+            print(f"langur-agent not installed. Installing to {install_dir}...")
+            subprocess.run(['bash', '-c', f'BRANCH=main INSTALL_DIR="{install_dir}" curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/main/install.sh | bash'], check=True)
+        else:
+            print(f"Updating langur-agent in {install_dir}...")
+            subprocess.run(['git', 'pull'], cwd=install_dir, check=True)
+            subprocess.run([sys.executable, '-m', 'pip', 'install', install_dir, '--quiet'], check=True)
+            print("Update complete.")
+        return
 
     try:
         agent = Agent(config_path=args.config)

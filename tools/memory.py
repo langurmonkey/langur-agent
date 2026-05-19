@@ -7,24 +7,22 @@ Allows the agent to operate on memory:
 - Set user profile
 """
 from agent.tools import register_tool
+from agent.memory import Memory
 
 def save_note_handler(args):
     """Save a note to persistent memory."""
-    from langur.memory import Memory
     mem = Memory()
     note = mem.add_note(args.get("content", ""), category=args.get("category", "general"))
     return {"saved": True, "note_id": note["id"], "category": note["category"]}
 
 def save_memory_handler(args):
     """Explicitly persist all memory to disk."""
-    from langur.memory import Memory
     mem = Memory()
     mem.save()
     return {"saved": True, "message": "Memory persisted to disk"}
 
 def get_memory_handler(args):
     """Read the agent's current memory (profile + notes)."""
-    from langur.memory import Memory
     mem = Memory()
     text = mem.get_formatted()
     if text:
@@ -33,7 +31,6 @@ def get_memory_handler(args):
 
 def set_user_profile_handler(args):
     """Set the user profile. Call save_memory after to persist."""
-    from langur.memory import Memory
     mem = Memory()
     # args can be a dict of key-value pairs, or a 'data' key with a dict
     if "data" in args and isinstance(args["data"], dict):

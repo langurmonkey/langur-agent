@@ -10,7 +10,6 @@ Contains 2 tools:
 
 from agent.tools import register_tool
 
-
 def echo_handler(args):
     """Echo back the input text."""
     return {"result": args.get("text", "")}

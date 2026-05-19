@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
 # Langur Agent installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/<user>/langur-agent/main/install.sh | bash
+# Usage: curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/main/install.sh | bash
 
 set -euo pipefail
 
-VERSION="${VERSION:-0.1.0}"
-REPO="${REPO:-langur-agent}"
-OWNER="${OWNER:-jumpinglangur}"
-PYVER="${PYVER:-}"
-INSTALL_DIR="${INSTALL_DIR:-}"
+# Configuration
+REPO="langur-agent"
+OWNER="langurmonkey"
+BRANCH="${BRANCH:-main}"
+REPO_URL="https://codeberg.org/$OWNER/$REPO.git"
+
+# XDG-compliant paths with macOS support
+if [ "$(uname)" = "Darwin" ]; then
+    export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/Library}"
+    export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/Library/Preferences}"
+    export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/Library/Caches}"
+fi
+
+XDG_DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+INSTALL_DIR="${INSTALL_DIR:-$XDG_DATA/langur-agent/repository}"
 
 # Detect Python
-if [ -z "$PYVER" ]; then
-    if command -v python3 &>/dev/null; then
-        PYVER="python3"
-    elif command -v python &>/dev/null; then
-        PYVER="python"
-    else
-        echo "Error: No Python found. Install Python 3.13+ and try again."
-        exit 1
-    fi
+if command -v python3 &>/dev/null; then
+    PYVER="python3"
+elif command -v python &>/dev/null; then
+    PYVER="python"
+else
+    echo "Error: No Python found. Install Python 3.13+ and try again."
+    exit 1
 fi
 
 # Detect pip
@@ -38,10 +46,10 @@ if [ -n "$INSTALL_DIR" ]; then
     TARGET="--target=$INSTALL_DIR"
     echo "Installing to custom directory: $INSTALL_DIR"
 else
-    # Try pipx first (recommended for CLI tools)
     if command -v pipx &>/dev/null; then
         echo "Using pipx for installation..."
         PIP_CMD="pipx"
+        TARGET=""
     else
         TARGET="--break-system-packages"
         PIP_CMD="pip3"
@@ -49,38 +57,30 @@ else
     fi
 fi
 
-# Download wheel
-WHEEL_URL="https://github.com/$OWNER/$REPO/releases/download/v$VERSION/langur_agent-$VERSION-py3-none-any.whl"
-echo "Downloading langur-agent $VERSION..."
-
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
-
-if ! curl -fsSL -o "$TMPDIR/langur_agent.whl" "$WHEEL_URL"; then
-    echo "Warning: Failed to download from GitHub releases."
-    echo "Falling back to PyPI..."
-    
-    # Try PyPI
-    PYPI_URL="https://pypi.io/packages/langur-agent/langur-agent/$VERSION/langur_agent-$VERSION-py3-none-any.whl"
-    if ! curl -fsSL -o "$TMPDIR/langur_agent.whl" "$PYPI_URL"; then
-        echo "Error: Failed to download langur-agent from PyPI."
-        echo ""
-        echo "Install manually:"
-        echo "  pip install langur-agent"
-        exit 1
-    fi
+# Clone or update the repository
+if [ -d "$INSTALL_DIR/.git" ]; then
+    echo "Updating existing installation..."
+    cd "$INSTALL_DIR"
+    git fetch origin
+    git checkout "$BRANCH"
+    git pull origin "$BRANCH"
+else
+    echo "Cloning langur-agent repository..."
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Install
+# Install from local source
 echo "Installing langur-agent..."
 if [ "$PIP_CMD" = "pipx" ]; then
-    pipx install "$TMPDIR/langur_agent.whl" --force
+    pipx install "$INSTALL_DIR" --force
 else
-    $PIP_CMD install "$TARGET" "$TMPDIR/langur_agent.whl" --quiet
+    $PIP_CMD install "$TARGET" "$INSTALL_DIR" --quiet
 fi
 
 # Create default config if not exists
-CONFIG_DIR="$HOME/.config/langur-agent"
+XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+CONFIG_DIR="$XDG_CONFIG/langur-agent"
 if [ ! -f "$CONFIG_DIR/config.yaml" ]; then
     mkdir -p "$CONFIG_DIR"
     echo "Creating default config at $CONFIG_DIR/config.yaml"
@@ -102,9 +102,10 @@ fi
 
 # Show next steps
 echo ""
-echo "✅ langur-agent $VERSION installed successfully!"
+echo "✅ langur-agent installed successfully!"
 echo ""
 echo "Next steps:"
 echo "  1. Edit config: nano ~/.config/langur-agent/config.yaml"
 echo "  2. Run: langur-agent"
-echo "  3. One-shot: langur-agent 'your query'"
+echo "  3. Update: langur-agent --update"
+echo "  4. One-shot: langur-agent 'your query'"
