@@ -14,11 +14,20 @@ Langur Agent is a simple, open, hackable CLI AI agent for Linux. It supports **t
 
 Langur Agent has been tested on Linux only. It may work on macOS, but there are no guarantees.
 
+### Requirements
+
+- Python 3.13+
+- `uv` for dependency management
+
+### Installation
+
 Install the agent with:
 
 ```bash
 curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/master/install.sh | bash
 ```
+
+### Running
 
 Add your API key (if any), and run.
 

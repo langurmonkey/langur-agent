@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+# Check for uv
+if ! command -v uv &>/dev/null; then
+    echo "Error: uv is required but not found. Install it from https://github.com/astral-sh/uv"
+    exit 1
+fi
+
 # Configuration
 REPO="langur-agent"
 OWNER="langurmonkey"
@@ -20,41 +26,11 @@ fi
 XDG_DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
 INSTALL_DIR="${INSTALL_DIR:-$XDG_DATA/langur-agent/repository}"
 
-# Detect Python
-if command -v python3 &>/dev/null; then
-    PYVER="python3"
-elif command -v python &>/dev/null; then
-    PYVER="python"
+# Detect platform for symlink location
+if [ "$(uname)" = "Darwin" ]; then
+    BIN_DIR="$HOME/.local/bin"
 else
-    echo "Error: No Python found. Install Python 3.13+ and try again."
-    exit 1
-fi
-
-# Detect pip
-PIP_CMD=""
-if command -v pip3 &>/dev/null; then
-    PIP_CMD="pip3"
-elif command -v pip &>/dev/null; then
-    PIP_CMD="pip"
-else
-    echo "Error: pip not found. Install pip and try again."
-    exit 1
-fi
-
-# Determine install target
-if [ -n "$INSTALL_DIR" ]; then
-    TARGET="--target=$INSTALL_DIR"
-    echo "Installing to custom directory: $INSTALL_DIR"
-else
-    if command -v pipx &>/dev/null; then
-        echo "Using pipx for installation..."
-        PIP_CMD="pipx"
-        TARGET=""
-    else
-        TARGET="--break-system-packages"
-        PIP_CMD="pip3"
-        echo "Installing system-wide (requires --break-system-packages)..."
-    fi
+    BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 fi
 
 # Clone or update the repository
@@ -70,13 +46,13 @@ else
     git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$INSTALL_DIR"
 fi
 
-# Install from local source
-echo "Installing langur-agent..."
-if [ "$PIP_CMD" = "pipx" ]; then
-    pipx install "$INSTALL_DIR" --force
-else
-    $PIP_CMD install "$TARGET" "$INSTALL_DIR" --quiet
+# Create venv and install with uv
+echo "Installing langur-agent with uv..."
+cd "$INSTALL_DIR"
+if [ ! -d ".venv" ]; then
+    uv venv
 fi
+uv sync
 
 # Create default config if not exists
 XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -98,6 +74,28 @@ agent:
   stream: true
   chat_max_chars: 64000
 EOF
+fi
+
+# Create wrapper script in ~/.local/bin
+mkdir -p "$BIN_DIR"
+cat > "$BIN_DIR/langur-agent" << WRAPPER
+#!/bin/bash
+INSTALL_DIR="$INSTALL_DIR"
+if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/pyproject.toml" ]; then
+    echo "Error: Could not find langur-agent installation"
+    exit 1
+fi
+cd "$INSTALL_DIR"
+exec uv run langur-agent $@
+WRAPPER
+chmod +x "$BIN_DIR/langur-agent"
+echo "Created wrapper: $BIN_DIR/langur-agent"
+
+# Ensure ~/.local/bin is in PATH
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    echo ""
+    echo "⚠️  $BIN_DIR is not in your PATH. Add it to your shell config:"
+    echo "  export PATH=\"$BIN_DIR:\$PATH\""
 fi
 
 # Show next steps
