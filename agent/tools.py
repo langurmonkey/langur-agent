@@ -67,12 +67,13 @@ def execute_tool(name, arguments):
         return result
     return json.dumps(result)
 
-def log_tools():
+def get_tools_str():
     """Auto-discover tools and log them to terminal"""
     discover_tools()
+    result = ""
     for name, tool in _registry.items():
-        print(f"⬤ [cyan]{name}[/]: {tool['description']}")
-    print()
+        result += f"⬤ [cyan]{name}[/]: {tool['description']}\n"
+    return result + "\n"
 
 def discover_tools(tools_dir=None):
     """Auto-discover tools from the tools/ directory.

@@ -11,22 +11,23 @@ import json
 import os
 import sys
 import time
-# Counting tokens
 import tiktoken
+import openai
 
 from rich import print, box, inspect
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.align import Align
+from rich.live import Live
+from rich.markdown import Markdown
+
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
-import openai
-
-from agent.config import load_config, log_config
+from agent.config import get_config
 from agent.memory import Memory
 from agent.skills import SkillLoader
-from agent.tools import get_tool_schemas, execute_tool, log_tools
+from agent.tools import get_tool_schemas, execute_tool
 from agent.commands import registry
 
 # Try to import prompt_toolkit for rich input; fall back to plain input.
@@ -52,13 +53,12 @@ class Agent:
     """Simple LLM agent with tools, skills, and memory."""
 
     def __init__(self, config_path=None):
-        self.config = load_config(config_path)
-        model_cfg = self.config.get("model", {})
-        agent_cfg = self.config.get("agent", {})
+        self.config = get_config()
+        self.config.load(config_path)
 
         # Initialize OpenAI client
-        api_key = model_cfg.get("api_key") or os.environ.get("LANGUR_API_KEY", "")
-        base_url = model_cfg.get("base_url")
+        api_key = self.config.get("model.api_key") or os.environ.get("LANGUR_API_KEY", "")
+        base_url = self.config.get("model.base_url")
         # Auto-append /v1 for LM Studio / local API servers
         if base_url and not base_url.endswith("/v1"):
             base_url = base_url.rstrip("/") + "/v1"
@@ -69,11 +69,9 @@ class Agent:
             raise Exception(f"{err}")
 
         # Agent settings
-        self.model = model_cfg.get("name", "qwen/qwen3.6-35b-a3b")
-        self.max_turns = agent_cfg.get("max_turns", 50)
-        self.personality = agent_cfg.get("system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
-        self.stream = agent_cfg.get("stream", True)
-        max_chat_history = agent_cfg.get("max_chat_history", 128000)
+        self.system_prompt = self.config.get("agent.system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
+        self.markdown = self.config.get("agent.markdown", False)
+        max_chat_history = self.config.get("max_chat_history", 128000)
 
         # Initialize subsystems
         self.memory = Memory(max_chat_history=max_chat_history)
@@ -81,6 +79,10 @@ class Agent:
 
         # Conversation history
         self.messages = []
+
+        # Status
+        self.thinking = False
+        self.generating = False
 
         # Initialize tokenizer for token-counting
         encoding_name = "cl100k_base"
@@ -92,7 +94,7 @@ class Agent:
 
     def _build_system_prompt(self):
         """Build the system prompt with personality, skills, and memory."""
-        parts = [self.personality]
+        parts = [self.system_prompt]
 
         # Add formatted memory
         memory_text = self.memory.get_formatted()
@@ -111,108 +113,168 @@ class Agent:
 
         return "\n".join(parts)
 
-    def _send_to_llm(self, stream=False):
-        """Send messages to the LLM and get a response.
+    def _stream_handler(self, live, response):
+        self.thinking_buffer = ""
+        self.response_buffer = ""
 
-        Args:
-            stream: If True, print tokens as they arrive and return a
-                    dict with 'text' and 'tool_calls' keys. If False,
-                    return the raw message object.
+        tool_calls = {}
+        first_chunk_time = None
+        thinking_end = False
+
+        for chunk in response:
+            delta = chunk.choices[0].delta
+            now = time.time()
+
+            # Track when first chunk arrives (excludes request send time)
+            if first_chunk_time is None:
+                first_chunk_time = now
+
+            # Thinking
+            if (
+                self.config.get("model.show_thinking", False)
+                and hasattr(delta, 'reasoning_content')
+                and delta.reasoning_content
+            ):
+            
+                if not self.thinking:
+                    if self.markdown:
+                        self.thinking_buffer += " **-> THINKING...**\n\n"
+                    else:
+                        print("[white on #777777]Thinking...[/]")
+
+                self.thinking_buffer += delta.reasoning_content
+
+                if self.markdown:
+                    # Update logic:
+                    # 1. Periodic update (every 0.3s)
+                    # 2. Or logical break (e.g., after a double newline)
+                    should_update = (
+                        not hasattr(response, 'last_update') or 
+                        (time.time() - getattr(response, 'last_update', 0) > 0.5)
+                    )
+
+                    # Optional: Update more frequently for a "typing" effect, 
+                    # but only if the markdown is syntactically safe (e.g. not inside an open code block)
+                    if should_update:
+                        md = Markdown(self.thinking_buffer, style="dim")
+                        live.update(md)
+                        response.last_update = time.time()
+                else:
+                    # Only print, do not save
+                    print(f"[grey39]{delta.reasoning_content}[/]", end="", flush=True)
+
+                self.thinking = True
+
+            # Collect response text
+            if delta.content:
+                if self.thinking and not thinking_end:
+                    # End thinking
+                    self.thinking = False
+                    thinking_end = True
+                    if self.markdown:
+                        self.thinking_buffer += "\n **-> DONE THINKING**\n"
+                    else:
+                        print("[white on #777777]Done thinking[/]")
+                        print()
+                
+                self.response_buffer += delta.content
+                self.generating = True
+
+                if self.markdown:
+                    # Update logic:
+                    # 1. Periodic update (every 0.3s)
+                    # 2. Or logical break (e.g., after a double newline)
+                    should_update = (
+                        not hasattr(response, 'last_update') or 
+                        (time.time() - getattr(response, 'last_update', 0) > 0.5)
+                    )
+
+                    # Optional: Update more frequently for a "typing" effect, 
+                    # but only if the markdown is syntactically safe (e.g. not inside an open code block)
+                    if should_update:
+                        md = Markdown(self.thinking_buffer + self.response_buffer)
+                        live.update(md)
+                        response.last_update = time.time()
+
+                else:
+                    # Print text
+                    print(delta.content, end="", flush=True)
+
+            # Collect tool calls
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls:
+                        tool_calls[idx] = {
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc.function.name:
+                        tool_calls[idx]["function"]["name"] += tc.function.name
+                    if tc.function.arguments:
+                        tool_calls[idx]["function"]["arguments"] += tc.function.arguments
+
+        return (first_chunk_time, tool_calls)
+
+    def _send_to_llm(self):
+        """Send messages to the LLM and get a response.
         """
         tools = get_tool_schemas()
         start = time.time()
 
         try:
-            print("[#888888] ⚙ Processing prompt...[/]")
+            print("[grey50] ⚙ Processing prompt...[/]")
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=self.config.get("model.name", "qwen/qwen3.6-35b-a3b"),
                 messages=self.messages,
+                temperature=self.config.get("model.temperature", 0.8),
                 tools=tools if tools else None,
                 tool_choice="auto",
-                stream=stream,
+                stream=True,
             )
         except Exception as e:
             raise RuntimeError(
                 f"API connection error. Please, check the endpoint [model={self.model}, base_url={self.client.base_url}]: {e}"
             ) from e
 
-        if stream:
-            # Collect streamed tokens and tool calls
-            full_text = ""
-            tool_calls = {}  # indexed by position to merge partial deltas
-            first_chunk_time = None
-
-            try:
-                for chunk in response:
-                    delta = chunk.choices[0].delta
-                    now = time.time()
-
-                    # Track when first chunk arrives (excludes request send time)
-                    if first_chunk_time is None:
-                        first_chunk_time = now
-
-                    # Collect text
-                    if delta.content:
-                        full_text += delta.content
-
-                        # Print text
-                        print(delta.content, end="", flush=True)
-
-                    # Collect tool calls
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            idx = tc.index
-                            if idx not in tool_calls:
-                                tool_calls[idx] = {
-                                    "id": tc.id,
-                                    "type": tc.type,
-                                    "function": {"name": "", "arguments": ""},
-                                }
-                            if tc.function.name:
-                                tool_calls[idx]["function"]["name"] += tc.function.name
-                            if tc.function.arguments:
-                                tool_calls[idx]["function"]["arguments"] += tc.function.arguments
-
-            except KeyboardInterrupt:
-                # Close the response stream to stop the API call
-                response.close()
-                print("\n[bold yellow]⏹  Turn cancelled[/bold yellow]")
-                raise TurnCancelled() from None
-
-            # Newline
-            print()
-
-            # Count tokens using tiktoken (LM Studio streaming doesn't include usage)
-            tokens = 0
-            if self.encoding and full_text:
-                tokens = len(self.encoding.encode(full_text))
-
-            # Elapsed time: from first chunk to last chunk (generation time only)
-            if first_chunk_time is not None:
-                gen_elapsed = now - first_chunk_time
+        try:
+            if self.markdown:
+                md = Markdown("")
+                with Live(md, refresh_per_second=10) as live:
+                    (first_chunk_time, tool_calls) = self._stream_handler(live, response)
             else:
-                gen_elapsed = time.time() - start
-            if gen_elapsed <= 0:
-                gen_elapsed = 1  # avoid division by zero
-            
-            # No debug output
+                (first_chunk_time, tool_calls) = self._stream_handler(None, response)
 
-            # Convert indexed dict to list
-            tc_list = list(tool_calls.values()) if tool_calls else None
+        except KeyboardInterrupt:
+            # Close the response stream to stop the API call
+            response.close()
+            print("\n[bold yellow]⏹  Turn cancelled[/bold yellow]")
+            raise TurnCancelled() from None
 
-            return ({"text": full_text, "tool_calls": tc_list}, tokens, gen_elapsed)
-        # Non-streaming: return message object
-        if not response.choices:
-            raise RuntimeError(
-                f"LLM returned no choices. Model: {self.model}, "
-                f"base_url: {self.client.base_url}. "
-                f"Check that the model name matches a loaded model in LM Studio. "
-                f"Response: {response}"
-            )
+        # We are done!
+        print()
+        self.thinking = False
+        self.generating = False
+        now = time.time()
 
-        tokens = response.choices[0].message.usage.completion_tokens
-        gen_elapsed = time.time() - start
-        return (response.choices[0].message, tokens, gen_elapsed)
+        # Count tokens using tiktoken (LM Studio streaming doesn't include usage)
+        tokens = 0
+        if self.encoding and self.response_buffer:
+            tokens = len(self.encoding.encode(self.response_buffer))
+
+        # Elapsed time: from first chunk to last chunk (generation time only)
+        if first_chunk_time is not None:
+            gen_elapsed = now - first_chunk_time
+        else:
+            gen_elapsed = time.time() - start
+        if gen_elapsed <= 0:
+            gen_elapsed = 1  # avoid division by zero
+        
+        # Convert indexed dict to list
+        tc_list = list(tool_calls.values()) if tool_calls else None
+
+        return ({"text": self.response_buffer, "tool_calls": tc_list}, tokens, gen_elapsed)
 
     def run(self, user_input):
         """Run a turn interaction with a user message.
@@ -241,10 +303,10 @@ class Agent:
         total_gen_time = 0
         # Tool usages
         ntools = 0
-        for turn in range(self.max_turns):
+        for turn in range(self.config.get("agent.max_turns", 50)):
             # Send to LLM
             try:
-                (result, tokens, gen_elapsed) = self._send_to_llm(stream=self.stream)
+                (result, tokens, gen_elapsed) = self._send_to_llm()
             except TurnCancelled:
                 # User cancelled: don't persist anything, return immediately
                 return ("[Cancelled]", 0, 0, 0.0)
@@ -327,16 +389,6 @@ class Agent:
         print(f"[black on #777777]  ⬤  {total_gen_time:.1f}s  ⬤  {total_tokens} tokens  ⬤  {ntools} tools  [/black on #777777]")
         print()
 
-    def print_help(self):
-        for cmd in registry.list_commands():
-            aliases = ", ".join(f"[green]{a}[/]" for a in cmd.aliases)
-            primary = f"[green]{cmd.name}[/]"
-            if aliases:
-                names = f"{primary}, {aliases}"
-            else:
-                names = primary
-            print(f"⬤ {names} → {cmd.description}")
-        print()
         
     def _create_prompt_session(self):
         # Key bindings: 
@@ -353,10 +405,11 @@ class Agent:
         # Create prompt session now
         style = Style.from_dict({
             "prompt": "ansiyellow",
+            "frame.border": "ansiyellow",
         })
 
         # Vi mode
-        vi_mode = self.config.get("agent").get("vi_mode", False)
+        vi_mode = self.config.get("agent.vi_mode", False)
 
         # Slash commands autocompleter
         commands = [cmd.name for cmd in registry.list_commands()]
@@ -388,10 +441,9 @@ class Agent:
     def run_interactive(self):
         """Run the agent in interactive mode."""
         title = Align.center("[bold blue]LANGUR AGENT[/bold blue]", vertical='middle')
-        print(Panel(title, box=box.HEAVY, border_style="yellow"))
+        print(Panel(title, box=box.HEAVY, border_style="blue"))
         print()
-        self.print_help()
-
+        print(registry.get_commands_str())
 
         if _HAS_PROMPT_TOOLKIT:
             self._create_prompt_session()
@@ -422,17 +474,22 @@ class Agent:
                 command = tokens[0]
                 params = tokens[1:] if len(tokens) > 1 else []
 
-                result, should_exit = registry.execute(self, command, params)
-                if should_exit:
-                    print(f"\n[bold blue]Goodbye![/]")
-                    break
-                if result:
-                    print(result)
-                    print()
+                if registry.lookup(command):
+                    result, should_exit = registry.execute(self, command, params)
+                    if should_exit:
+                        print(f"\n[bold blue]Goodbye![/]")
+                        break
+                    if result:
+                        print(result)
+                        print()
+                else:
+                    print(f"[red]ERROR:[/red] command not found: {command}")
+                    
                 continue
+
             else:
 
-                print(f"\n[magenta]⩥ Agent ⩤ [/magenta]  ⦗[blue]{self.model}[/blue]⦘\n", end="", flush=True)
+                print(f"\n[magenta]⩥ Agent ⩤ [/magenta]  ⦗[blue]{self.config.get('model.name')}[/blue]⦘\n", end="", flush=True)
                 (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
                 print()
                 if response == "[Cancelled]":

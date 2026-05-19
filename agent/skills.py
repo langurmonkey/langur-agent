@@ -34,16 +34,17 @@ class SkillLoader:
             return []
         return [f.stem for f in self.skills_dir.glob("*.md")]
 
-    def log_skills(self):
+    def get_skills_str(self):
         """Prints out the current skills"""
         skills = self.list_skills()
+        result = ""
         for name in skills:
             skill_path = self.skills_dir / f"{name}.md"
             if skill_path.exists():
                 content = skill_path.read_text()
                 meta, _ = self._parse_frontmatter(content)
-                print(f"⬤ [cyan]{meta['name']}[/]: {meta['description']}")
-        print()
+                result += f"⬤ [cyan]{meta['name']}[/]: {meta['description']}\n"
+        return result + "\n"
 
     def _parse_frontmatter(self, content):
         """Extract YAML frontmatter and body from skill content."""

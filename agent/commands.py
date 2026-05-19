@@ -1,17 +1,27 @@
 """Centralized slash command registry for langur-agent."""
 
 from __future__ import annotations
+
+import ast
+from rich import print
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
+
+def smart_cast(value, target_type):
+    """Cast a string value to a given type, handling booleans correctly."""
+    if target_type is bool:
+        return ast.literal_eval(value)   # 'False' → False
+    return target_type(value)            # '42' → 42, '3.14' → float, etc.
 
 @dataclass(frozen=True)
 class Command:
     """A single slash command definition."""
     name: str
-    aliases: list[str] = field(default_factory=list)
     description: str = ""
     handler: Callable = None  # (agent, params: list[str]) -> str | None
+    aliases: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list)
     can_complete: bool = False
 
 
@@ -36,6 +46,14 @@ class CommandRegistry:
         cmd = self.lookup(name)
         if cmd is None:
             return None, False
+
+        if (
+            params and
+            (params[0].lower() == "-h" or params[0].lower() == "help")
+        ):
+            msg = self._command_str(cmd)
+            return msg, False
+                
         result = cmd.handler(agent, params)
         should_exit = name.lower() in ("/quit", "/exit", "/q")
         return result, should_exit
@@ -54,6 +72,33 @@ class CommandRegistry:
         """Return all command names (primary + aliases) for completion."""
         return list(self._commands.keys())
 
+    def get_commands_str(self):
+        """ Prints all defined commands to the output"""
+        all = ""
+        for cmd in self.list_commands():
+            all += f"{self._command_str(cmd)}"
+
+        return all
+
+    def _command_str(self, cmd):
+        aliases = ", ".join(f"[green]{a}[/]" for a in cmd.aliases)
+        primary = f"[green]{cmd.name}[/]"
+        if aliases:
+            names = f"{primary}, {aliases}"
+        else:
+            names = primary
+        result = ""
+        result += f"⬤ {names} → {cmd.description}\n"
+
+        if cmd.examples:
+            result += f"[grey50]  Examples:[/]\n"
+
+        for example in cmd.examples:
+            result += f"[grey30]    {example}[/]\n"
+
+        return result
+        
+
 
 # Module-level singleton
 registry = CommandRegistry()
@@ -65,6 +110,13 @@ def _cmd_quit(agent, params):
     return "EXIT"
 
 
+def _cmd_showthinking(agent, params):
+    if params:
+        state = params[0].lower() == "on"
+        return _cmd_config(agent, ["model.show_thinking", state])
+    return "[red]ERROR:[/] /showthinking command needs a parameter (on/off): '/showthinking on', '/showthinking off'"
+
+
 def _cmd_note(agent, params):
     if params:
         agent.memory.add_note(" ".join(params))
@@ -74,51 +126,129 @@ def _cmd_note(agent, params):
 
 def _cmd_notes(agent, params):
     notes = agent.memory.get_notes()
-    return "\n".join(f"⬤ {note['id']} ({note['category']}): {note['content']}" for note in notes)
+    return "\n".join(f"⬤ [blue]{note['id']}[/blue] ({note['category']}): {note['content']}" for note in notes)
 
+def _agent_memory(agent):
+    return f"[red]===== AGENT MEMORY =====[/red]\n\n{agent.memory.get_formatted()}\n\n"
+
+def _chat_memory(agent):
+    chat = agent.memory.get_formatted_chat()
+    chars = len(chat)
+    max = agent.config.get("agent.max_chat_history")
+    chat = f"[red]===== CHAT MEMORY ===== [/red]\n\n{chat}\n\n[red underline]CHAT MEM SIZE:[/red underline] {chars}/{max} ({float(chars) * 100.0/float(max):.2f}%)\n\n"
+    return chat
+    
 
 def _cmd_memory(agent, params):
-    return agent.memory.get_formatted() + agent.memory.get_formatted_chat()
+    if params:
+        if params[0].lower() == "agent":
+            return _agent_memory(agent)
+        elif params[0].lower() == "chat":
+            return _chat_memory(agent)
+        else:
+            return f"[red]ERROR:[/] unrecognized subcommand '{params[0]}', only 'agent' and 'chat' accepted"
+    else:
+        # Print all
+        return _agent_memory(agent) + _chat_memory(agent)
 
 
 def _cmd_tools(agent, params):
-    from agent.tools import log_tools
-    log_tools()
-    return None
+    from agent.tools import get_tools_str
+    return get_tools_str()
 
 
 def _cmd_skills(agent, params):
-    agent.skills.log_skills()
-    return None
+    return agent.skills.get_skills_str()
 
 
 def _cmd_config(agent, params):
-    from agent.config import log_config
-    log_config()
-    return None
+    if params:
+        # Set configuration values
+        if len(params) != 2:
+            return "[red]ERROR:[/] /config needs either zero or two parameters: key and value"
+        else:
+            from agent.config import get_config
+            config = get_config()
+            key = params[0]
+            value = params[1]
+            if config.has(key):
+                t = type(config.get(key))
+                new_value = smart_cast(value, t)
+                config.set(key, new_value)
+
+                if hasattr(agent, key):
+                    setattr(agent, key, value)
+
+                return f"[green]OK:[/] {key}: {value}"
+                
+            else:
+                return f"[red]ERROR:[/] Key '{key}' does not exist in the configuration"
+            
+    else:
+        from agent.config import log_config
+        log_config()
+        return None
 
 
 def _cmd_vi(agent, params):
     if params:
-        vi = params[0].lower() == "on"
-        agent.config.get("agent")["vi_mode"] = vi
-        agent._create_prompt_session()
-        return f"[green]OK:[/] vi mode: {vi}"
+        state = params[0].lower() == "on"
+        result = _cmd_config(agent, ["agent.vi_mode", str(state)])
+        if result.startswith("[green]OK"):
+            agent._create_prompt_session()
+        return result
     return "[red]ERROR:[/] /vi command needs a parameter (on/off): '/vi on', '/vi off'"
 
 
 def _cmd_help(agent, params):
-    agent.print_help()
-    return None
+    return registry.get_commands_str()
 
 
 # --- Register all commands ---
-registry.register(Command("/quit", ["/exit", "/q"], "Exit the agent", _cmd_quit))
-registry.register(Command("/note", [], "Save a note to memory", _cmd_note))
-registry.register(Command("/notes", [], "List all notes", _cmd_notes))
-registry.register(Command("/memory", [], "List memory contents", _cmd_memory))
-registry.register(Command("/tools", [], "List available tools", _cmd_tools))
-registry.register(Command("/skills", [], "List loaded skills", _cmd_skills))
-registry.register(Command("/config", [], "Print configuration", _cmd_config))
-registry.register(Command("/vi", [], "Toggle vi mode (on/off)", _cmd_vi))
-registry.register(Command("/help", ["/commands"], "Show command help", _cmd_help, can_complete=True))
+registry.register(Command("/quit",
+                          "Exit the agent",
+                          _cmd_quit,
+                          aliases=["/exit", "/q"]))
+registry.register(Command("/note",
+                          "Save a note to memory",
+                          _cmd_note,
+                          examples=["/note Sometimes the wind blows from the East"]))
+registry.register(Command("/notes",
+                          "List all notes",
+                          _cmd_notes))
+registry.register(Command("/memory",
+                          "List memory contents",
+                          _cmd_memory,
+                          examples=[
+                              "/memory  # list all contents",
+                              "/memory agent [dim]# only list agent memory (profile and notes)[/dim]",
+                              "/memory chat  [dim]# only list chat memory[/dim]"
+                          ]
+                          ))
+registry.register(Command("/tools",
+                          "List available tools",
+                          _cmd_tools))
+registry.register(Command("/skills",
+                          "List loaded skills",
+                          _cmd_skills))
+registry.register(Command("/showthinking",
+                           "Show or hide the model thinking tokens",
+                           _cmd_showthinking,
+                           examples=["/showthinking (on|off)"]))
+registry.register(Command("/vi",
+                           "Enable or disable vi mode input",
+                           _cmd_vi,
+                           examples=["/vi (on|off)"]))
+registry.register(Command("/config",
+                           "Set configuration values (/config model.temperature 0.6), or print it (/config)",
+                           _cmd_config,
+                           examples=[
+                               "/config  [dim]# list configuration[/dim]",
+                               "/config agent.temperature 0.8  [dim]# set temperature[/dim]"
+                           ]))
+registry.register(Command("/help",
+                           "Show command help",
+                           _cmd_help,
+                           aliases=["/commands"],
+                           can_complete=True))
+

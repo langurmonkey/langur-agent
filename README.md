@@ -60,18 +60,23 @@ model:
   provider: local
   # Model name
   name: qwen/qwen3.6-35b-a3b
-  # Local API key.
-  # Or use env. variable: export LANGUR_API_KEY=your-api-key
+  # Local API key
   api_key: ""
   base_url: "http://127.0.0.1:1234/v1"
+  # Temperature setting for inference
+  # Can be overridden during a session with /temp
+  temperature: 0.8
+  # Show the model internal thinking
+  show_thinking: False
 
 agent:
   max_turns: 50
   system_prompt: "You are a helpful assistant, expert in many domains of science and engineering. Respond concisely and clearly. No fluff. Ask for clarification if needed. Do not invent. On first interaction, analyze the user's message for their name, role, interests, and preferences. Record them with set_user_profile."
-  stream: true
+  # Format markdown output. WARN: may be CPU-intensive
+  markdown: false
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
-  # Enable/disable vi mode for input
+  # Enable vi mode input
   vi_mode: false
 ```
 
@@ -87,19 +92,24 @@ You can enable `vi` mode for the current session with the [command](#commands) `
 
 ### Commands
 
-There are a few commands available to use in the agent loop:
+There are a few commands available to use in the agent loop. You can list them with `/help`. Also, use `/[command-name] help` (e.g. `/config help`) to show additional help for a command.
 
-| Command | Description |
-| :--- | :--- |
-| `/q`, `/quit`, `/exit` | exit |
-| `/note` your note | create a note in the memory |
-| `/notes` | list current notes |
-| `/memory` | list memory contents (user profile, notes, chat memory) |
-| `/tools` | list tools |
-| `/skills` | list skills |
-| `/config` | print configuration |
-| `/vi` on|off | enable/disable vi-mode input |
-| `/help`, `/commands` | print command help |
+Below is a listing of all the slash commands.
+
+| Command(s) | Description | Examples |
+| :--- | :--- | :--- |
+| `/quit`, `/exit`, `/q` | Exit the agent | |
+| `/note` | Save a note to memory | `/note The sky is blue` |
+| `/notes` | List all notes | |
+| `/memory` | List memory contents | `/memory`, `/memory agent`, `/memory chat` |
+| `/tools` | List available tools | |
+| `/skills` | List loaded skills | |
+| `/showthinking` | Show or hide thinking tokens | `/showthinking on`, `/showthinking off` |
+| `/vi` | Enable or disable vi mode input | `/vi on`, `/vi off` |
+| `/config` | Set configuration values or print config | `/config` (list), `/config model.temperature 0.6` |
+| `/help`, `/commands` | Show command help | |
+
+The `/config` slash command updates the in-memory configuration and persist it to disk. For properties that need further initialization (like vi mode), please use the appropriate commands (e.g. `/vi on`).
 
 ## Global memory
 

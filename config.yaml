@@ -7,12 +7,18 @@ model:
   # Local API key
   api_key: ""
   base_url: "http://127.0.0.1:1234/v1"
+  # Temperature setting for inference
+  # Can be overridden during a session with /temp
+  temperature: 0.8
+  # Show the model internal thinking
+  show_thinking: False
 
 agent:
   max_turns: 50
   system_prompt: "You are a helpful assistant, expert in many domains of science and engineering. Respond concisely and clearly. No fluff. Ask for clarification if needed. Do not invent. On first interaction, analyze the user's message for their name, role, interests, and preferences. Record them with set_user_profile."
-  stream: true
+  # Format markdown output. WARN: may be CPU-intensive
+  markdown: false
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
-  # Enable vi mode for input
+  # Enable vi mode input
   vi_mode: false
