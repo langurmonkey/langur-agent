@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Langur Agent installer
-# Usage: curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/main/install.sh | bash
+# Usage: curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/master/install.sh | bash
 
 set -euo pipefail
 
 # Configuration
 REPO="langur-agent"
 OWNER="langurmonkey"
-BRANCH="${BRANCH:-main}"
+BRANCH="${BRANCH:-master}"
 REPO_URL="https://codeberg.org/$OWNER/$REPO.git"
 
 # XDG-compliant paths with macOS support

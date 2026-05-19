@@ -17,7 +17,7 @@ Langur Agent has been tested on Linux only. It may work on macOS, but there are 
 Install the agent with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jumpinglangur/langur-agent/main/install.sh | bash
+curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/master/install.sh | bash
 ```
 
 Add your API key (if any), and run.
