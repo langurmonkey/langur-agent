@@ -132,7 +132,7 @@ class Agent:
             )
         except Exception as e:
             raise RuntimeError(
-                f"LLM API error (model={self.model}, base_url={self.client.base_url}): {e}"
+                f"API connection error. Please, check the endpoint [model={self.model}, base_url={self.client.base_url}]: {e}"
             ) from e
 
         if stream:

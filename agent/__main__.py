@@ -3,6 +3,7 @@
 
 import sys
 import time
+from rich import print
 from pathlib import Path
 
 # Ensure the project root (parent of agent/) is on the path
@@ -25,7 +26,7 @@ def main():
     try:
         agent = Agent(config_path=config_path)
     except Exception as e:
-        print("Error creating agent", e)
+        print("[red]ERROR:[/red] Agent creation failed", e)
         return
 
     # One-shot mode: langur-agent "your query"
@@ -42,7 +43,10 @@ def main():
         return
 
     # Interactive mode
-    agent.run_interactive()
+    try:
+        agent.run_interactive()
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":
