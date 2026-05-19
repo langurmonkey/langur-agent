@@ -58,7 +58,7 @@ class Agent:
 
         # Initialize OpenAI client
         api_key = self.config.get("model.api_key") or os.environ.get("LANGUR_API_KEY", "")
-        base_url = self.config.get("model.base_url")
+        base_url = self.config.get("model.base_url", "http://127.0.0.1:1234/v1")
         # Auto-append /v1 for LM Studio / local API servers
         if base_url and not base_url.endswith("/v1"):
             base_url = base_url.rstrip("/") + "/v1"

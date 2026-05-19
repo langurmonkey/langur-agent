@@ -177,7 +177,7 @@ def _cmd_config(agent, params):
                 config.set(key, new_value)
 
                 if hasattr(agent, key):
-                    setattr(agent, key, value)
+                    setattr(agent, key, new_value)
 
                 return f"[green]OK:[/] {key}: {value}"
                 

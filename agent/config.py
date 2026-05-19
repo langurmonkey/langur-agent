@@ -41,13 +41,13 @@ def _get_defaults():
             "name": "gpt-4o-mini",
             "api_key": os.environ.get("LANGUR_API_KEY", ""),
             "base_url": "",
-            "context_length": 128000,
             "temperature": 0.8,
         },
         "agent": {
             "max_turns": 50,
-            "personality": "You are a helpful assistant.",
+            "system_prompt": "You are a helpful assistant.",
             "markdown": False,
+            "max_chat_history": 128000,
             "vi_mode": False,
         },
     }

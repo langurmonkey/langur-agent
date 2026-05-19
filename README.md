@@ -56,15 +56,12 @@ It works with any OpenAI-compatible endpoint, so LM Studio, Ollama, OpenWebUI, o
 ```yaml
 # Langur Agent Configuration
 model:
-  # openai, openrouter, local
-  provider: local
   # Model name
   name: qwen/qwen3.6-35b-a3b
   # Local API key
   api_key: ""
   base_url: "http://127.0.0.1:1234/v1"
   # Temperature setting for inference
-  # Can be overridden during a session with /temp
   temperature: 0.8
   # Show the model internal thinking
   show_thinking: False
