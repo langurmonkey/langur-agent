@@ -18,7 +18,7 @@ from rich import print, box, inspect
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.align import Align
-from rich.live import Live
+from rich.console import Console as RichConsole
 from rich.markdown import Markdown
 
 from pathlib import Path
@@ -70,8 +70,8 @@ class Agent:
 
         # Agent settings
         self.system_prompt = self.config.get("agent.system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
-        self.markdown = self.config.get("agent.markdown", False)
         max_chat_history = self.config.get("max_chat_history", 128000)
+        self.markdown = self.config.get("agent.markdown", False)
 
         # Initialize subsystems
         self.memory = Memory(max_chat_history=max_chat_history)
@@ -137,31 +137,12 @@ class Agent:
             ):
             
                 if not self.thinking:
-                    if self.markdown:
-                        self.thinking_buffer += " **-> THINKING...**\n\n"
-                    else:
-                        print("[white on #777777]Thinking...[/]")
+                    print("[white on #777777]Thinking...[/]")
 
                 self.thinking_buffer += delta.reasoning_content
 
-                if self.markdown:
-                    # Update logic:
-                    # 1. Periodic update (every 0.3s)
-                    # 2. Or logical break (e.g., after a double newline)
-                    should_update = (
-                        not hasattr(response, 'last_update') or 
-                        (time.time() - getattr(response, 'last_update', 0) > 0.5)
-                    )
-
-                    # Optional: Update more frequently for a "typing" effect, 
-                    # but only if the markdown is syntactically safe (e.g. not inside an open code block)
-                    if should_update:
-                        md = Markdown(self.thinking_buffer, style="dim")
-                        live.update(md)
-                        response.last_update = time.time()
-                else:
-                    # Only print, do not save
-                    print(f"[grey39]{delta.reasoning_content}[/]", end="", flush=True)
+                # Only print, do not save
+                print(f"[grey39]{delta.reasoning_content}[/]", end="", flush=True)
 
                 self.thinking = True
 
@@ -171,34 +152,14 @@ class Agent:
                     # End thinking
                     self.thinking = False
                     thinking_end = True
-                    if self.markdown:
-                        self.thinking_buffer += "\n **-> DONE THINKING**\n"
-                    else:
-                        print("[white on #777777]Done thinking[/]")
-                        print()
+                    print("[white on #777777]Done thinking[/]")
+                    print()
                 
                 self.response_buffer += delta.content
                 self.generating = True
 
-                if self.markdown:
-                    # Update logic:
-                    # 1. Periodic update (every 0.3s)
-                    # 2. Or logical break (e.g., after a double newline)
-                    should_update = (
-                        not hasattr(response, 'last_update') or 
-                        (time.time() - getattr(response, 'last_update', 0) > 0.5)
-                    )
-
-                    # Optional: Update more frequently for a "typing" effect, 
-                    # but only if the markdown is syntactically safe (e.g. not inside an open code block)
-                    if should_update:
-                        md = Markdown(self.thinking_buffer + self.response_buffer)
-                        live.update(md)
-                        response.last_update = time.time()
-
-                else:
-                    # Print text
-                    print(delta.content, end="", flush=True)
+                # Print text
+                print(delta.content, end="", flush=True)
 
             # Collect tool calls
             if delta.tool_calls:
@@ -239,12 +200,7 @@ class Agent:
             ) from e
 
         try:
-            if self.markdown:
-                md = Markdown("")
-                with Live(md, refresh_per_second=10) as live:
-                    (first_chunk_time, tool_calls) = self._stream_handler(live, response)
-            else:
-                (first_chunk_time, tool_calls) = self._stream_handler(None, response)
+            (first_chunk_time, tool_calls) = self._stream_handler(None, response)
 
         except KeyboardInterrupt:
             # Close the response stream to stop the API call
@@ -254,6 +210,19 @@ class Agent:
 
         # We are done!
         print()
+
+        # Print markdown if needed
+        if self.markdown and self.response_buffer:
+            console = RichConsole()
+            md_panel = Panel(
+                Markdown(self.response_buffer),
+                title="[bold]📝 Markdown version[/bold]",
+                title_align="left",
+                border_style="magenta",
+                padding=(1, 2),
+            )
+            console.print(md_panel)
+        
         self.thinking = False
         self.generating = False
         now = time.time()
@@ -489,7 +458,8 @@ class Agent:
 
             else:
 
-                print(f"\n[magenta]⩥ Agent ⩤ [/magenta]  ⦗[blue]{self.config.get('model.name')}[/blue]⦘\n", end="", flush=True)
+                print(f"\n[magenta]⩥ Agent ⩤ [/magenta]  ⦗[blue]{self.config.get('model.name')}[/blue]⦘", flush=True)
+                print("  [dim][bold]Ctrl[/bold]+[bold]C[/bold]: Cancel turn[/dim]\n", flush=True)
                 (response, total_tokens, ntools, total_gen_time) = self.run(user_input)
                 print()
                 if response == "[Cancelled]":

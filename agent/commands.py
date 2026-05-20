@@ -240,11 +240,12 @@ registry.register(Command("/vi",
                            _cmd_vi,
                            examples=["/vi (on|off)"]))
 registry.register(Command("/config",
-                           "Set configuration values (/config model.temperature 0.6), or print it (/config)",
+                           "Set configuration values",
                            _cmd_config,
                            examples=[
                                "/config  [dim]# list configuration[/dim]",
-                               "/config agent.temperature 0.8  [dim]# set temperature[/dim]"
+                               "/config model.show_thinking False  [dim]# do not show reasoning[/dim]",
+                               "/config agent.temperature 0.8      [dim]# set temperature[/dim]"
                            ]))
 registry.register(Command("/help",
                            "Show command help",
