@@ -86,7 +86,7 @@ if [ ! -d "$INSTALL_DIR" ] || [ ! -f "$INSTALL_DIR/pyproject.toml" ]; then
     exit 1
 fi
 cd "$INSTALL_DIR"
-exec uv run langur-agent $@
+exec uv run langur-agent "\$@"
 WRAPPER
 chmod +x "$BIN_DIR/langur-agent"
 echo "Created wrapper: $BIN_DIR/langur-agent"
