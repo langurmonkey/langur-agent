@@ -78,7 +78,7 @@ model:
 agent:
   max_turns: 50
   system_prompt: "You are a helpful assistant, expert in many domains of science and engineering. Respond concisely and clearly. No fluff. Ask for clarification if needed. Do not invent. On first interaction, analyze the user's message for their name, role, interests, and preferences. Record them with set_user_profile."
-  # Format markdown output after generation finishes
+  # Display formatted output at the end of generation
   markdown: false
   # Length of chat history kept for context, in characters
   max_chat_history: 128000
