@@ -48,6 +48,11 @@ def main():
         action='store_true',
         help='Update langur-agent from upstream and reinstall',
     )
+    parser.add_argument(
+        '-t', '--tui',
+        action='store_true',
+        help='WIP! Use TUI mode based on textual',
+    )
     args = parser.parse_args()
 
     # Handle --update
@@ -66,31 +71,36 @@ def main():
             print("Update complete.")
         return
 
-    try:
-        agent = Agent(config_path=args.config)
-    except Exception as e:
-        print(f"[red]ERROR:[/red] Agent creation failed: {e}")
-        sys.exit(1)
+    if not args.tui:
+        try:
+            agent = Agent(config_path=args.config)
+        except Exception as e:
+            print(f"[red]ERROR:[/red] Agent creation failed: {e}")
+            sys.exit(1)
 
-    # One-shot mode: langur-agent "your query"
-    if args.query:
-        query = " ".join(args.query)
-        result = agent.run(query)
-        # run() returns (text, total_tokens, ntools, total_gen_time) tuple
-        if isinstance(result, tuple):
-            print(result[0])
-            if len(result) > 3:
-                print(f"\n[black on #777777]  ⏣  {result[3]:.1f}s  ⏣  {result[1]} tokens  ⏣  {result[2]} tools  [/black on #777777]")
-        else:
-            print(result)
-        return
+        # One-shot mode: langur-agent "your query"
+        if args.query:
+            query = " ".join(args.query)
+            result = agent.run(query)
+            # run() returns (text, total_tokens, ntools, total_gen_time) tuple
+            if isinstance(result, tuple):
+                print(result[0])
+                if len(result) > 3:
+                    print(f"\n[black on #777777]  ⏣  {result[3]:.1f}s  ⏣  {result[1]} tokens  ⏣  {result[2]} tools  [/black on #777777]")
+            else:
+                print(result)
+            return
 
-    # Interactive mode
-    try:
-        agent.run_interactive()
-    except Exception as e:
-        print(e)
-        print(traceback.format_exc())
+        # Interactive mode
+        try:
+            agent.run_interactive()
+        except Exception as e:
+            print(e)
+            print(traceback.format_exc())
+    else:
+        from agent.tui import LangurAgent
+        app = LangurAgent()
+        app.run()
 
 
 if __name__ == "__main__":

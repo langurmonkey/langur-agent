@@ -38,6 +38,7 @@ try:
     from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
     from prompt_toolkit.styles import Style
     from prompt_toolkit.completion import FuzzyWordCompleter
+    from prompt_toolkit.clipboard import InMemoryClipboard
     from prompt_toolkit.formatted_text import HTML
     _HAS_PROMPT_TOOLKIT = True
 
@@ -113,7 +114,7 @@ class Agent:
 
         return "\n".join(parts)
 
-    def _stream_handler(self, live, response):
+    def _stream_handler(self, response, callback=None):
         self.thinking_buffer = ""
         self.response_buffer = ""
 
@@ -156,6 +157,9 @@ class Agent:
                     print()
                 
                 self.response_buffer += delta.content
+                if callback:
+                    callback(delta.content)
+
                 self.generating = True
 
                 # Print text
@@ -178,7 +182,7 @@ class Agent:
 
         return (first_chunk_time, tool_calls)
 
-    def _send_to_llm(self):
+    def _send_to_llm(self, callback=None):
         """Send messages to the LLM and get a response.
         """
         tools = get_tool_schemas()
@@ -200,7 +204,7 @@ class Agent:
             ) from e
 
         try:
-            (first_chunk_time, tool_calls) = self._stream_handler(None, response)
+            (first_chunk_time, tool_calls) = self._stream_handler(response, callback)
 
         except KeyboardInterrupt:
             # Close the response stream to stop the API call
@@ -245,7 +249,7 @@ class Agent:
 
         return ({"text": self.response_buffer, "tool_calls": tc_list}, tokens, gen_elapsed)
 
-    def run(self, user_input):
+    def run(self, user_input, response_callback=None):
         """Run a turn interaction with a user message.
 
         Args:
@@ -275,7 +279,7 @@ class Agent:
         for turn in range(self.config.get("agent.max_turns", 50)):
             # Send to LLM
             try:
-                (result, tokens, gen_elapsed) = self._send_to_llm()
+                (result, tokens, gen_elapsed) = self._send_to_llm(response_callback)
             except TurnCancelled:
                 # User cancelled: don't persist anything, return immediately
                 return ("[Cancelled]", 0, 0, 0.0)
@@ -399,6 +403,7 @@ class Agent:
                     multiline=True,
                     key_bindings=kb,
                     vi_mode=vi_mode,
+                    clipboard=InMemoryClipboard(),
                     enable_open_in_editor=vi_mode,
                     complete_while_typing=True,        
                     complete_in_thread=True,
