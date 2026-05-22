@@ -114,7 +114,9 @@ class Agent:
 
         return "\n".join(parts)
 
-    def _stream_handler(self, response, callback=None):
+    def _stream_handler(self,
+                        response,
+                        content_callback=None):
         self.thinking_buffer = ""
         self.response_buffer = ""
 
@@ -139,11 +141,15 @@ class Agent:
             
                 if not self.thinking:
                     print("[white on #777777]Thinking...[/]")
+                    if content_callback:
+                        content_callback("Thinking...")
 
                 self.thinking_buffer += delta.reasoning_content
 
                 # Only print, do not save
                 print(f"[grey39]{delta.reasoning_content}[/]", end="", flush=True)
+                if content_callback:
+                    content_callback(delta.reasoning_content)
 
                 self.thinking = True
 
@@ -155,10 +161,12 @@ class Agent:
                     thinking_end = True
                     print("[white on #777777]Done thinking[/]")
                     print()
+                    if content_callback:
+                        content_callback("Done thinking")
                 
                 self.response_buffer += delta.content
-                if callback:
-                    callback(delta.content)
+                if content_callback:
+                    content_callback(delta.content)
 
                 self.generating = True
 
@@ -182,7 +190,8 @@ class Agent:
 
         return (first_chunk_time, tool_calls)
 
-    def _send_to_llm(self, callback=None):
+    def _send_to_llm(self,
+                        content_callback=None):
         """Send messages to the LLM and get a response.
         """
         tools = get_tool_schemas()
@@ -190,6 +199,7 @@ class Agent:
         model_name = self.config.get("model.name", "qwen/qwen3.6-35b-a3b")
         try:
             print("[grey50] ⚙ Processing prompt...[/]")
+                
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=self.messages,
@@ -204,8 +214,7 @@ class Agent:
             ) from e
 
         try:
-            (first_chunk_time, tool_calls) = self._stream_handler(response, callback)
-
+            (first_chunk_time, tool_calls) = self._stream_handler(response, content_callback)
         except KeyboardInterrupt:
             # Close the response stream to stop the API call
             response.close()
@@ -249,7 +258,9 @@ class Agent:
 
         return ({"text": self.response_buffer, "tool_calls": tc_list}, tokens, gen_elapsed)
 
-    def run(self, user_input, response_callback=None):
+    def run(self,
+            user_input,
+            content_callback=None):
         """Run a turn interaction with a user message.
 
         Args:
@@ -279,7 +290,7 @@ class Agent:
         for turn in range(self.config.get("agent.max_turns", 50)):
             # Send to LLM
             try:
-                (result, tokens, gen_elapsed) = self._send_to_llm(response_callback)
+                (result, tokens, gen_elapsed) = self._send_to_llm(content_callback)
             except TurnCancelled:
                 # User cancelled: don't persist anything, return immediately
                 return ("[Cancelled]", 0, 0, 0.0)
