@@ -14,9 +14,14 @@ class LangurAgent(App):
         super().__init__()
         self.agent = None
         self.executor = None  # Store executor instance
-        self.current_response = None
-        self.current_reasoning = None
+        # Current response array.
+        # 0 -> thinking starts widget
+        # 1 -> thinking body widget
+        # 2 -> thinking ends widget
+        # 3 -> response body widget
+        self.current_response = {}
         self.generating = False
+        self.reasoning = False
 
     def compose(self) -> ComposeResult:
         yield Static("  [b]Langur Agent[/b]", id="title")
@@ -35,16 +40,16 @@ class LangurAgent(App):
         if self.executor:
             self.executor.shutdown(wait=False)
 
-    def _add_to_history(self, role: str, text: str) -> None:
+    def _send_user_message(self, text: str) -> None:
+        self._add_prompt("user", text)
+        self._start_generating(text)
+
+    def _add_prompt(self, role: str, text: str) -> None:
         history = self.query_one("#history", VerticalScroll)
         title = Static(f" ⩥ {role.title()} ⩤ ", classes=f"{role}-title")
         body = Static(text)
         history.mount(title, body)
         history.scroll_end(animate=False)
-
-    def _send_user_message(self, text: str) -> None:
-        self._add_to_history("user", text)
-        self._start_generating(text)
 
     def _start_generating(self, prompt) -> None:
         self.generating = True
@@ -56,38 +61,47 @@ class LangurAgent(App):
         title = Static(" ⩥ Agent ⩤ ", classes="agent-title")
         history.mount(title)
 
-        self.current_response = Static("", classes="response")
-        history.mount(self.current_response)
-        self.current_reasoning = None
+        # Thinking start
+        self.current_response[0] = Static("", classes="thinking-header")
+        self.current_response[0].styles.display = "none"
+        # Thinking content
+        self.current_response[1] = Static("", classes="thinking-body")
+        self.current_response[1].styles.display = "none"
+        # Done thinking
+        self.current_response[2] = Static("", classes="thinking-header")
+        self.current_response[2].styles.display = "none"
+        # Response content
+        self.current_response[3] = Static("", classes="response-body")
+        self.current_response[3].styles.display = "none"
+
+        # Mount all
+        history.mount(self.current_response[0])
+        history.mount(self.current_response[1])
+        history.mount(self.current_response[2])
+        history.mount(self.current_response[3])
 
         # Helper to scroll history on the UI thread
         def scroll_history():
-            self.query_one("#history",
-                           VerticalScroll).scroll_end(animate=True,
-                                                      immediate=False,
-                                                      x_axis=False)
+            pass
+            # self.query_one("#history",
+            #                VerticalScroll).scroll_end(animate=True,
+            #                                           immediate=False,
+            #                                           x_axis=False)
 
         # Callbacks
         def content_callback(text):
             self.app.call_from_thread(self._on_content_update, text)
             self.app.call_from_thread(scroll_history) 
 
-        def reasoning_start_callback(text):
-            self.app.call_from_thread(self._on_reasoning_start, text)
-            self.app.call_from_thread(scroll_history) 
-
-        def reasoning_callback(text):
-            self.app.call_from_thread(self._on_reasoning_update, text)
-            self.app.call_from_thread(scroll_history) 
-
-        def reasoning_end_callback(text):
-            self.app.call_from_thread(self._on_reasoning_end, text)
+        def reasoning_callback(mode, text=None):
+            self.app.call_from_thread(self._on_reasoning_update, mode, text)
             self.app.call_from_thread(scroll_history) 
 
         # Run the synchronous agent.run in a background thread
         future = self.executor.submit(
                                       self.agent.run,
                                       prompt,
+                                      reasoning_callback,
                                       content_callback)
 
         # Hook into completion to update UI stats and re-enable input
@@ -95,37 +109,42 @@ class LangurAgent(App):
             lambda f: self.app.call_from_thread(self._finish_generating, f.result())
         )
 
-    # Reasoning starts
-    def _on_reasoning_start(self, text: str) -> None:
-        """Called once when reasoning starts."""
-        history = self.query_one("#history", VerticalScroll)
-        thinking = Static(" Thinking... ", classes="agent-title")
-        self.current_reasoning = Static("", classes="response")
-        self.current_reasoning.styles.color = "dim"
-        history.mount(thinking, self.current_reasoning)
-
-    # Reasoning update
-    def _on_reasoning_update(self, text: str) -> None:
-        """Called incrementally during reasoning."""
-        if self.current_reasoning:
-            current_text = self.current_reasoning.content
-            self.current_reasoning.update(current_text + text)
-
     # Reasoning ends
-    def _on_reasoning_end(self, text: str) -> None:
+    def _on_reasoning_update(self, mode:str, text:str=None) -> None:
         """Called once when reasoning ends."""
-        # Stop reasoning, add end
-        history = self.query_one("#history", VerticalScroll)
-        thinking_end = Static(" Thinking done ", classes="agent-title")
-        history.mount(thinking_end)
-        # Do NOT create a new response widget here — it was already created upfront.
+        match mode:
+            case 'start':
+                # Start reasoning
+                reasoning = True
+                w = self.current_response[0]
+                if w:
+                    w.styles.display = "block"
+                    w.update(" Thinking...")
+            case 'body':
+                # Reasoning content
+                w = self.current_response[1]
+                if w:
+                    w.styles.display = "block"
+                    current_text = w.content
+                    w.update(current_text + text)
+            case 'end':
+                # End reasoning
+                w = self.current_response[2]
+                if w:
+                    w.styles.display = "block"
+                    w.update(" Done thinking")
+                reasoning = False
+        
 
     # Content update
-    def _on_content_update(self, text: str) -> None:
+    def _on_content_update(self, text:str) -> None:
         """Called incrementally during streaming."""
-        if self.current_response:
-            current_text = self.current_response.content
-            self.current_response.update(current_text + text)
+        w = self.current_response[3]
+        if w:
+            # Append content
+            w.styles.display = "block"
+            current_text = w.content
+            w.update(current_text + text)
 
     def _finish_generating(self, result) -> None:
         """ Called when generation is done. """

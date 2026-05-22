@@ -35,7 +35,15 @@ Screen {
     color: $accent;
     background: $panel;
 }
-
 .stats {
     background: $boost;
+}
+.thinking-header {
+    background: $panel-muted;
+}
+.thinking-body {
+    opacity: 0.3;
+}
+.response-body {
+    
 }
