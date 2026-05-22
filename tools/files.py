@@ -6,8 +6,31 @@ Allows the agent to operate with files and directories in the file system.
 import os
 import tempfile
 from rich import print
-from agent.tools import register_tool
+from agent.tools import tool
 
+@tool(
+    name="read_file",
+    description=(
+        "Read the full contents of a file. Use this when the user asks to "
+        "see file contents, check a file's content, or read any file. "
+        "Takes a 'path' argument (absolute or relative path to the file). "
+        "Optional 'show_line_numbers' (bool) to prepend line numbers."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The file path to read (e.g., '/home/user/file.txt')",
+            },
+            "show_line_numbers": {
+                "type": "boolean",
+                "description": "If True, prepend line numbers to each line (e.g. '1: line1').",
+            },
+        },
+        "required": ["path"],
+    },
+)
 def read_file_handler(args):
     """Read a file and return its content.
 
@@ -53,6 +76,26 @@ def read_file_handler(args):
     }
     return output
 
+
+@tool(
+    name="list_dir",
+    description=(
+        "List all files and subdirectories in a directory. Use this when the "
+        "user asks to see what's in a folder, list directory contents, or "
+        "explore a directory structure. Takes a 'path' argument (absolute or "
+        "relative path to the directory)."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The directory path to list (e.g., '/home/user/projects')",
+            },
+        },
+        "required": ["path"],
+    },
+)
 def list_dir_handler(args):
     """List contents of a directory."""
     path = args.get("path", "")
@@ -80,11 +123,11 @@ def list_dir_handler(args):
     if dirs:
         lines.append(f"Directories ({len(dirs)}):")
         for d in sorted(dirs):
-            lines.append(f"  📁 {d}/")
+            lines.append(f"- {d}/")
     if files:
         lines.append(f"Files ({len(files)}):")
         for f in sorted(files):
-            lines.append(f"  📄 {f}")
+            lines.append(f"- {f}")
 
     return {
         "path": path,
@@ -93,6 +136,30 @@ def list_dir_handler(args):
         "files": files,
     }
 
+
+@tool(
+    name="write_file",
+    description=(
+        "Write or completely overwrite a file with new content. "
+        "Creates parent directories if they don't exist. "
+        "Use this when creating a new file or rewriting an entire file. "
+        "For targeted edits, use 'patch_file' instead."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The file path to write (e.g., '/home/user/file.txt')",
+            },
+            "content": {
+                "type": "string",
+                "description": "The full content to write to the file",
+            },
+        },
+        "required": ["path", "content"],
+    },
+)
 def write_file_handler(args):
     """Write or overwrite a file with new content. Creates parent directories."""
     path = args.get("path", "")
@@ -122,6 +189,34 @@ def write_file_handler(args):
     return {"path": path, "success": True, "message": f"Wrote {len(content)} bytes to {path}"}
 
 
+@tool(
+    name="patch_file",
+    description=(
+        "Apply a targeted edit to a file by replacing exact text. "
+        "Provide the EXACT text to find (old_string) and the replacement (new_string). "
+        "The edit only succeeds if old_string appears exactly once in the file. "
+        "Use this for surgical edits like changing a variable name, fixing a bug, "
+        "or updating a function body. For large changes, prefer 'write_file'."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The file path to edit (e.g., '/home/user/file.py')",
+            },
+            "old_string": {
+                "type": "string",
+                "description": "EXACT text to be replaced. Must match the file contents precisely.",
+            },
+            "new_string": {
+                "type": "string",
+                "description": "The replacement text to insert",
+            },
+        },
+        "required": ["path", "old_string", "new_string"],
+    },
+)
 def patch_file_handler(args):
     """Apply a targeted edit to a file using search/replace."""
     path = args.get("path", "")
@@ -178,104 +273,3 @@ def patch_file_handler(args):
         "success": True,
         "message": f"Replaced text in {path}",
     }
-
-register_tool(
-    name="read_file",
-    description=(
-        "Read the full contents of a file. Use this when the user asks to "
-        "see file contents, check a file's content, or read any file. "
-        "Takes a 'path' argument (absolute or relative path to the file). "
-        "Optional 'show_line_numbers' (bool) to prepend line numbers."
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "The file path to read (e.g., '/home/user/file.txt')",
-            },
-            "show_line_numbers": {
-                "type": "boolean",
-                "description": "If True, prepend line numbers to each line (e.g. '1: line1').",
-            },
-        },
-        "required": ["path"],
-    },
-    handler=read_file_handler,
-)
-
-register_tool(
-    name="list_dir",
-    description=(
-        "List all files and subdirectories in a directory. Use this when the "
-        "user asks to see what's in a folder, list directory contents, or "
-        "explore a directory structure. Takes a 'path' argument (absolute or "
-        "relative path to the directory)."
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "The directory path to list (e.g., '/home/user/projects')",
-            },
-        },
-        "required": ["path"],
-    },
-    handler=list_dir_handler,
-)
-
-register_tool(
-    name="write_file",
-    description=(
-        "Write or completely overwrite a file with new content. "
-        "Creates parent directories if they don't exist. "
-        "Use this when creating a new file or rewriting an entire file. "
-        "For targeted edits, use 'patch_file' instead."
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "The file path to write (e.g., '/home/user/file.txt')",
-            },
-            "content": {
-                "type": "string",
-                "description": "The full content to write to the file",
-            },
-        },
-        "required": ["path", "content"],
-    },
-    handler=write_file_handler,
-)
-
-register_tool(
-    name="patch_file",
-    description=(
-        "Apply a targeted edit to a file by replacing exact text. "
-        "Provide the EXACT text to find (old_string) and the replacement (new_string). "
-        "The edit only succeeds if old_string appears exactly once in the file. "
-        "Use this for surgical edits like changing a variable name, fixing a bug, "
-        "or updating a function body. For large changes, prefer 'write_file'."
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "The file path to edit (e.g., '/home/user/file.py')",
-            },
-            "old_string": {
-                "type": "string",
-                "description": "EXACT text to be replaced. Must match the file contents precisely.",
-            },
-            "new_string": {
-                "type": "string",
-                "description": "The replacement text to insert",
-            },
-        },
-        "required": ["path", "old_string", "new_string"],
-    },
-    handler=patch_file_handler,
-)

@@ -170,24 +170,29 @@ If you create a cool new tool or skill, consider contributing it via a pull requ
 
 ### Adding tools
 
-Create a file in `tools/` and call `register_tool()`:
+Create a file in `tools/` or use one of the existing ones. To create a tool,
+create a method and decorate it with `@tool(name, description, params)`:
 
 ```python
-from langur.tools import register_tool
+from langur.tools import tool
 
-def my_handler(args):
-    return {"result": "hello"}
-
-register_tool(
+@tool(
     name="my_tool",
-    description="Does something useful",
+    description="Does something useful. Be exhaustive here, as it is what the LLM will read to know about your tool.",
     parameters={
         "type": "object",
-        "properties": {"input": {"type": "string"}},
+        "properties": {
+            "input": {
+                "type": "string"
+                "description": "The input parameter."
+            }
+        },
         "required": ["input"],
     },
-    handler=my_handler,
 )
+def my_handler(args):
+    input = args.get("input", "no input provided")
+    return {"result": f"{input}"}
 ```
 
 Tools are auto-discovered on startup.

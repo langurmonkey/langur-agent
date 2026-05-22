@@ -9,7 +9,7 @@ import urllib.error
 import json
 import re
 from rich import print
-from agent.tools import register_tool
+from agent.tools import tool
 
 def _strip_scripts_and_styles(html):
     html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
@@ -43,19 +43,7 @@ def _decode_response(response):
     # Fall back to latin-1 (never fails — every byte is valid)
     return raw.decode('latin-1')
 
-def fetch_url_handler(url):
-    try:
-        print(f"  Accessing [white on #444444]{url}[/white on #444444]")
-        req = urllib.request.Request(url, headers={'User-Agent': 'LangurAgent/1.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            html = _decode_response(response)
-            return _strip_scripts_and_styles(html)
-    except urllib.error.HTTPError as e:
-        return {"error": str(e)}
-    except urllib.error.URLError as e:
-        return {"error": str(e)}
-
-register_tool(
+@tool(
     name="fetch_url",
     description=(
         "Browse a website given a URL and return the output."
@@ -71,5 +59,16 @@ register_tool(
         },
         "required": ["url"],
     },
-    handler=fetch_url_handler,
 )
+def fetch_url_handler(url):
+    try:
+        print(f"  Accessing [white on #444444]{url}[/white on #444444]")
+        req = urllib.request.Request(url, headers={'User-Agent': 'LangurAgent/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            html = _decode_response(response)
+            return _strip_scripts_and_styles(html)
+    except urllib.error.HTTPError as e:
+        return {"error": str(e)}
+    except urllib.error.URLError as e:
+        return {"error": str(e)}
+

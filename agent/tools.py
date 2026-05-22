@@ -35,6 +35,15 @@ def register_tool(name, description, parameters, handler):
     }
 
 
+def tool(name, description, parameters):
+    """Decorator to register tools."""
+
+    def inner(func):
+        register_tool(name, description, parameters, func)
+
+    return inner
+
+
 def get_tool_schemas():
     """Return all registered tools as OpenAI-format function schemas."""
     # Ensure tools are discovered before building schemas

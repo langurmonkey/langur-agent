@@ -12,7 +12,7 @@ import json
 import re
 from rich import print
 from rich.prompt import Confirm as RichConfirm
-from agent.tools import register_tool
+from agent.tools import tool
 
 
 # ──────────────────────────────────────────────
@@ -155,10 +155,36 @@ def _prompt_user(command: str, reason: str) -> bool:
     return confirmed
 
 
-# ──────────────────────────────────────────────
-# Tool handler
-# ──────────────────────────────────────────────
-
+# Actual tool
+@tool(
+    name="run_command",
+    description=(
+        "Execute a shell command and return the output. "
+        "Use this when you need to run terminal commands, execute scripts, "
+        "or interact with the filesystem via shell."
+        "Dangerous commands will prompt the "
+        "user for confirmation before running. The tool returns an error "
+        "if the user declines."
+    ),
+    parameters={
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "The shell command to execute",
+            },
+            "timeout": {
+                "type": "integer",
+                "description": "Maximum execution time in seconds (default: 30)",
+            },
+            "_skip_confirmation": {
+                "type": "boolean",
+                "description": "Internal flag — do not use directly",
+            },
+        },
+        "required": ["command"],
+    },
+)
 def run_command_handler(args):
     """Execute a shell command and return its output.
 
@@ -230,41 +256,3 @@ def run_command_handler(args):
         return {"error": f"Command timed out after {timeout}s"}
     except Exception as e:
         return {"error": str(e)}
-
-
-# ──────────────────────────────────────────────
-# Tool registration
-# ──────────────────────────────────────────────
-
-register_tool(
-    name="run_command",
-    description=(
-        "Execute a shell command and return the output. "
-        "Use this when you need to run terminal commands, execute scripts, "
-        "or interact with the filesystem via shell.\n\n"
-        "⚠️  Dangerous commands (rm -rf, dd, mkfs, etc.) will prompt the "
-        "user for confirmation before running. The tool returns an error "
-        "if the user declines.\n\n"
-        "For safe commands (read, grep, find, ls, etc.) the command is "
-        "displayed but runs automatically."
-    ),
-    parameters={
-        "type": "object",
-        "properties": {
-            "command": {
-                "type": "string",
-                "description": "The shell command to execute",
-            },
-            "timeout": {
-                "type": "integer",
-                "description": "Maximum execution time in seconds (default: 30)",
-            },
-            "_skip_confirmation": {
-                "type": "boolean",
-                "description": "Internal flag — do not use directly",
-            },
-        },
-        "required": ["command"],
-    },
-    handler=run_command_handler,
-)
