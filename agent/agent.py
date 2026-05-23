@@ -154,6 +154,7 @@ class Agent:
             ):
             
                 if not self.thinking:
+                    console.rule(style="grey39")
                     if show_thinking:
                         console.print("[orange1]⇨[/] 💡 Thinking...")
                         if reasoning_callback:
@@ -185,6 +186,7 @@ class Agent:
                         self.spinner_thinking.stop()
                         self.spinner_thinking = None
                     console.print("[green]✓[/] 💡 Done thinking")
+                    console.rule(style="grey39")
                 
                 self.response_buffer += delta.content
                 if content_callback:
