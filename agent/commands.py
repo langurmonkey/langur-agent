@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass, field
 from typing import Callable, Optional
+from rich.prompt import Prompt
 from prompt_toolkit.shortcuts import choice
 from prompt_toolkit.formatted_text import HTML
 
@@ -95,7 +96,7 @@ class CommandRegistry:
         else:
             names = primary
         result = ""
-        result += f"⬤ {names} → {cmd.description}\n"
+        result += f"• {names} → {cmd.description}\n"
 
         if cmd.examples:
             result += f"[grey50]  Examples:[/]\n"
@@ -229,7 +230,7 @@ def _cmd_skills(agent, params):
 
 @cmd(
       "/models",
-      "Set the model to use."
+      "Configure the model to use."
 )
 def _cmd_models(agent, params):
     models = agent.get_models()
@@ -253,6 +254,28 @@ def _cmd_models(agent, params):
         
     return f"[green]OK:[/] model: {result}"
         
+@cmd(
+      "/config",
+      "Configure the base URL and API key",
+)
+def _cmd_configure(agent, params):
+    from agent.config import get_config
+    config = get_config()
+    base_url = config.get("model.base_url")
+    api_key = config.get("model.api_key")
+
+    new_url = Prompt.ask("Base URL", default=base_url)
+    new_key = Prompt.ask("API key", default=api_key)
+
+    config.set("model.base_url", new_url)
+    config.set("model.api_key", new_key)
+
+    ok, msg = agent.initialize_client()
+    if not ok:
+        return f"[red]ERROR:[/red] {msg}"
+
+    return f"[green]OK:[/green] configuration modified"
+    
 
 @cmd(
       "/config-list",
@@ -298,7 +321,7 @@ def _cmd_config_set(agent, params):
 
 @cmd(
       "/vi",
-       "Enable or disable vi mode input",
+       "Enable or disable vi input mode",
        examples=["/vi (on|off)"]
 )
 def _cmd_vi(agent, params):

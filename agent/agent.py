@@ -59,7 +59,9 @@ class Agent:
         self.config.load(config_path)
 
         # Initialize client
-        self._initialize_client()
+        ok, msg = self.initialize_client()
+        if not ok:
+            raise Exception(msg)
 
         # Agent settings
         self.system_prompt = self.config.get("agent.system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
@@ -85,20 +87,33 @@ class Agent:
             console.print(f"[red]ERROR[/red]: Error loading tokenizer: {e}")
             raise Exception(f"{e}")
 
-    def _initialize_client(self):
-        """Initializes the client given the current configuration."""
+    def initialize_client(self):
+        """Initializes the client given the current configuration.
+            Returns:
+            - A boolean with the state (True=ok, False=error)
+            - An optional message
+        """
 
         # Initialize OpenAI client
         api_key = self.config.get("model.api_key") or os.environ.get("LANGUR_API_KEY", "")
+
+        if not api_key:
+            print("Configuring connection...")
+            cmd, _ = registry.lookup(["/config"])
+            registry.execute(self, cmd, None)
+            return self.initialize_client()
+        
         base_url = self.config.get("model.base_url", "http://127.0.0.1:1234/v1")
         # Auto-append /v1 for LM Studio / local API servers
         if base_url and not base_url.endswith("/v1"):
             base_url = base_url.rstrip("/") + "/v1"
+        
         try:
             self.client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
         except openai.OpenAIError as err:
-            console.print(f"[red]ERROR[/red]: OpenAI endpoint creation: {err}")
-            raise Exception(f"{err}")
+            return False, f"OpenAI endpoint creation: {err}"
+
+        return True, None
 
     def _build_system_prompt(self):
         """Build the system prompt with personality, skills, and memory."""
