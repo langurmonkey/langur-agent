@@ -7,9 +7,7 @@ The agent:
 4. Loops until max turns or a text response
 """
 
-import json
 import os
-import sys
 import time
 import tiktoken
 import openai
@@ -21,7 +19,6 @@ from rich.align import Align
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
 from agent.config import get_config

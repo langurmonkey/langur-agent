@@ -1,0 +1,390 @@
+"""Core logic of the agent.
+
+The core:
+1. Builds a system prompt (personality + skills + tools + memory)
+2. Sends messages to the LLM
+3. Handles tool calls or returns the final text response
+4. Loops until max turns or a text response
+"""
+
+import os
+import time
+import tiktoken
+import openai
+
+from enum import Enum
+from xdg_base_dirs import xdg_data_home
+
+from agent.config import get_config
+from agent.memory import Memory
+from agent.skills import SkillLoader
+from agent.tools import get_tool_schemas, execute_tool
+from agent.commands import registry
+
+class TurnCancelled(Exception):
+    """Raised when the user cancels an LLM turn mid-stream."""
+    pass
+
+class Stage(Enum):
+    START = 0
+    PROCESS = 1
+    STOP = 2
+
+class Core:
+    """Agent core, which manages tools, skills, memory, and API communication."""
+
+    def __init__(self, config_path=None):
+        self.config = get_config()
+        self.config.load(config_path)
+
+        # Initialize client
+        ok, msg = self.initialize_client()
+        if not ok:
+            raise Exception(msg)
+
+        # Agent settings
+        self.system_prompt = self.config.get("agent.system_prompt", "You are a helpful assistant, expert in many areas of science. Respond concisely and to the point. No fluff.")
+        max_chat_history = self.config.get("max_chat_history", 128000)
+        self.markdown = self.config.get("agent.markdown", False)
+
+        # Initialize subsystems
+        self.memory = Memory(max_chat_history=max_chat_history)
+        self.skills = SkillLoader()
+
+        # Conversation history
+        self.messages = []
+
+        # Status
+        self.thinking = False
+        self.generating = False
+
+        # Initialize tokenizer for token-counting
+        encoding_name = "cl100k_base"
+        try:
+            self.encoding = tiktoken.get_encoding(encoding_name)
+        except Exception as e:
+            raise Exception(f"Error loading tokenizer: {e}")
+
+    def initialize_client(self):
+        """Initializes the client given the current configuration.
+            Returns:
+            - A boolean with the state (True=ok, False=error)
+            - An optional message
+        """
+
+        # Initialize OpenAI client
+        api_key = self.config.get("model.api_key") or os.environ.get("LANGUR_API_KEY", "")
+
+        if not api_key:
+            cmd, _ = registry.lookup(["/config"])
+            registry.execute(self, cmd, None)
+            return self.initialize_client()
+        
+        base_url = self.config.get("model.base_url", "http://127.0.0.1:1234/v1")
+        # Auto-append /v1 for LM Studio / local API servers
+        if base_url and not base_url.endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
+        
+        try:
+            self.client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
+        except openai.OpenAIError as err:
+            return False, f"OpenAI endpoint creation: {err}"
+
+        return True, None
+
+    def _build_system_prompt(self):
+        """Build the system prompt with personality, skills, and memory."""
+        parts = [self.system_prompt]
+
+        # Add formatted memory
+        memory_text = self.memory.get_formatted()
+        if memory_text:
+            parts.append(memory_text)
+
+        # Add chat history
+        chat_text = self.memory.get_formatted_chat()
+        if chat_text:
+            parts.append(chat_text)
+
+        # Add skills
+        skills_text = self.skills.load_all()
+        if skills_text:
+            parts.append(skills_text)
+
+        return "\n".join(parts)
+
+    def _stream_handler(self,
+                        response,
+                        prompt_callback=None,
+                        reasoning_callback=None,
+                        content_callback=None,
+                        error_callback=None):
+        self.thinking_buffer = ""
+        self.response_buffer = ""
+
+        tool_calls = {}
+        first_chunk_time = None
+        thinking_end = False
+
+        for chunk in response:
+            # Stop prompt spinner
+            if self.prompt_callback:
+                self.prompt_callback(Stage.STOP)
+                
+            delta = chunk.choices[0].delta
+            now = time.time()
+
+            # Track when first chunk arrives (excludes request send time)
+            if first_chunk_time is None:
+                first_chunk_time = now
+
+            show_thinking = self.config.get("model.show_thinking", False)
+            # Thinking
+            if (
+                hasattr(delta, 'reasoning_content')
+                and delta.reasoning_content
+            ):
+            
+                if not self.thinking:
+                    if reasoning_callback:
+                        reasoning_callback(Stage.START, None, show_thinking)
+
+                self.thinking_buffer += delta.reasoning_content
+
+                if reasoning_callback:
+                    reasoning_callback(Stage.PROCESS, delta.reasoning_content, show_thinking)
+
+                self.thinking = True
+
+            # Collect response text
+            if delta.content:
+                if self.thinking and not thinking_end:
+                    # End thinking
+                    self.thinking = False
+                    thinking_end = True
+                    if reasoning_callback:
+                        reasoning_callback(Stage.STOP, None, show_thinking)
+                
+                self.response_buffer += delta.content
+                if content_callback:
+                    content_callback(delta.content)
+
+                self.generating = True
+
+            # Collect tool calls
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    idx = tc.index
+                    if idx not in tool_calls:
+                        tool_calls[idx] = {
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc.function.name:
+                        tool_calls[idx]["function"]["name"] += tc.function.name
+                    if tc.function.arguments:
+                        tool_calls[idx]["function"]["arguments"] += tc.function.arguments
+
+        return (first_chunk_time, tool_calls)
+
+    def _send_to_llm(self,
+                     prompt_callback=None,
+                     reasoning_callback=None,
+                     content_callback=None,
+                     cancel_callback=None,
+                     error_callback=None):
+        """Send messages to the LLM and get a response.
+        """
+        tools = get_tool_schemas()
+        start = time.time()
+        model_name = self.config.get("model.name", "qwen/qwen3.6-35b-a3b")
+        try:
+            if prompt_callback:
+                prompt_callback(Stage.START)
+                
+            response = self.client.chat.completions.create(
+                model=model_name,
+                messages=self.messages,
+                temperature=self.config.get("model.temperature", 0.8),
+                tools=tools if tools else None,
+                tool_choice="auto",
+                stream=True,
+            )
+        except Exception as e:
+            if error_callback:
+                error_callback(e, f"API connection error. Please, check the endpoint [model={model_name}, base_url={self.client.base_url}]: {e}")
+
+        try:
+            (first_chunk_time, tool_calls) = self._stream_handler(response,
+                                                                  prompt_callback,
+                                                                  reasoning_callback,
+                                                                  content_callback,
+                                                                  cancel_callback,
+                                                                  error_callback)
+        except KeyboardInterrupt:
+            # Close the response stream to stop the API call
+            response.close()
+            if cancel_callback:
+                cancel_callback()
+
+        return self._finish_inference(first_chunk_time)
+
+    def _finish_inference(self, first_chunk_time):
+        self.thinking = False
+        self.generating = False
+        now = time.time()
+
+        # Count tokens using tiktoken (LM Studio streaming doesn't include usage)
+        tokens = 0
+        if self.encoding and self.response_buffer:
+            tokens = len(self.encoding.encode(self.response_buffer))
+
+        # Elapsed time: from first chunk to last chunk (generation time only)
+        if first_chunk_time is not None:
+            gen_elapsed = now - first_chunk_time
+        else:
+            gen_elapsed = time.time() - start
+        if gen_elapsed <= 0:
+            gen_elapsed = 1  # avoid division by zero
+        
+        # Convert indexed dict to list
+        tc_list = list(tool_calls.values()) if tool_calls else None
+        
+        return ({"text": self.response_buffer, "tool_calls": tc_list}, tokens, gen_elapsed)
+
+
+    def run_turn(self,
+            user_input,
+            prompt_callback=None,
+            reasoning_callback=None,
+            content_callback=None,
+            tool_callback=None,
+            cancel_callback=None,
+            error_callback=None):
+        """Run a turn interaction with a user message.
+
+        Args:
+            user_input: The user's message string.
+            prompt_callback: Callback for prompt processing. Gets Stage.
+            reasoning_callback: Callback for reasoning updates. Gets Stage and optional message.
+            content_callback: Callback for content updates. Gets message.
+            tool_callback: Callback to run during tool activations. Gets tool name and args.
+            cancel_callback: Callback for user-cancelled inference.
+            error_callback: Callback on error.
+
+        Returns:
+            The final text response from the LLM.
+        """
+        # Record start time
+        start = time.time()
+
+        # Record user input in chat memory
+        self.memory.add_chat_exchange("user", user_input)
+
+        # Initialize with system prompt
+        self.messages = [
+            {"role": "system", "content": self._build_system_prompt()},
+            {"role": "user", "content": user_input},
+        ]
+
+        # Total token count
+        total_tokens = 0
+        # Total generation time (excludes network latency, prompt building, etc.)
+        total_gen_time = 0
+        # Number of tool calls
+        n_tools = 0
+        for turn in range(self.config.get("agent.max_turns", 50)):
+            # Send to LLM
+            try:
+                (result, tokens, gen_elapsed) = self._send_to_llm(prompt_callback,
+                                                                  reasoning_callback,
+                                                                  content_callback,
+                                                                  cancel_callback,
+                                                                  error_callback)
+            except TurnCancelled:
+                # User cancelled: don't persist anything, return immediately
+                return ("[Cancelled]", 0, 0, 0.0)
+
+            total_tokens += tokens
+            total_gen_time += gen_elapsed
+
+            # Normalize tool calls from both streaming (plain dicts) and
+            # non-streaming (OpenAI API objects) into a common format
+            if isinstance(result, dict):
+                # Streaming mode: result is {"text": ..., "tool_calls": ...}
+                response_text = result.get("text", "")
+                raw_tool_calls = result.get("tool_calls")
+            else:
+                # Non-streaming mode: result is a message object
+                response_text = result.content or ""
+                raw_tool_calls = result.tool_calls
+
+            # Normalize tool calls to plain dicts
+            tool_calls = []
+            if raw_tool_calls:
+                for tc in raw_tool_calls:
+                    if isinstance(tc, dict):
+                        # Already a plain dict from streaming
+                        tool_calls.append(tc)
+                    else:
+                        # OpenAI API object — convert to dict
+                        tool_calls.append({
+                            "id": tc.id,
+                            "type": tc.type,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        })
+
+            # Handle tool calls
+            if tool_calls:
+                n_tools += self._tool_calls(tool_calls, tool_callback)
+                continue  # Loop back to LLM with tool results
+
+            # No tool calls - this is the final response
+            self.messages.append({"role": "assistant", "content": response_text})
+            
+            # Record assistant output in chat memory
+            self.memory.add_chat_exchange("assistant", response_text)
+            # Persist memory
+            self.memory.save()
+            
+            return (response_text, total_tokens, n_tools, total_gen_time)
+
+        # Max turns reached!
+        # Persist memory
+        self.memory.save()
+        return "I've reached the maximum number of turns. Please rephrase your request."
+
+    def _tool_calls(self, tool_calls, tool_callback=None):
+        """Handle tool calls"""
+        # Append the assistant message with tool calls as plain dicts
+        self.messages.append({
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls,
+        })
+
+        n_tools = 0
+        # Execute each tool call
+        for tc in tool_calls:
+            n_tools = ntools + 1
+            tool_name = tc["function"]["name"]
+            tool_args = tc["function"]["arguments"]
+
+            if tool_callback:
+                tool_callback(tool_name, tool_args)
+
+            result = execute_tool(tool_name, json.loads(tool_args) if isinstance(tool_args, str) else tool_args)
+
+            # Append tool result
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            })
+
+        return n_tools
+        
