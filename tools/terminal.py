@@ -155,6 +155,21 @@ def _prompt_user(command: str, reason: str) -> bool:
 
     return confirmed
 
+def _prompt_user_pt(command: str, reason: str) -> bool:
+    """Ask the user to confirm (or reject) a command."""
+    from prompt_toolkit.shortcuts import yes_no_dialog
+
+    confirmed = yes_no_dialog(
+        title="<b>⚠️  Command requires confirmation</b>",
+        text=f"Reason: {reason}\n <b>$</b> {command}\nRun this command?"
+    ).run()
+
+    if confirmed:
+        console.print("  [green]✓ Confirmed[/green]")
+    else:
+        console.print("  [red]✗ Cancelled by user[/red]")
+
+    return confirmed
 
 # Actual tool
 @tool(

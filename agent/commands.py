@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 from prompt_toolkit.shortcuts import choice
+from prompt_toolkit.formatted_text import HTML
 
 from agent.console import console
 
@@ -237,9 +238,12 @@ def _cmd_models(agent, params):
     defa = models.data[0].id
     console.print(f"default: {defa}")
     result = choice(
-        message="Choose a model",
+        message="Choose a model:",
         options=opts,
         default=defa,
+        bottom_toolbar=HTML(
+            " <b>↑</b>/<b>↓</b>: select | <b>Enter</b>: accept"
+        ),
     )
 
     try:
