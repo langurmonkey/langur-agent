@@ -19,6 +19,7 @@ from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.align import Align
 from rich.markdown import Markdown
+from rich.panel import Panel
 
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
@@ -417,7 +418,7 @@ class Agent:
         return "I've reached the maximum number of turns. Please rephrase your request."
 
     def _statusline(self, total_tokens, ntools, total_gen_time):
-        console.print(f"[black on #777777]  ⬤  {total_gen_time:.1f}s  ⬤  {total_tokens} tokens  ⬤  {ntools} tools  [/black on #777777]")
+        console.print(f"[black on #777777]   {total_gen_time:.1f}s  ⬤  {total_tokens} tokens  ⬤  {ntools} tools   [/black on #777777]", justify="full")
         console.print()
 
         

@@ -45,7 +45,7 @@ class CommandRegistry:
             return None, None
 
         n = len(tokens)
-        for words in range(1, n+1):
+        for words in reversed(range(1, n+1)):
             name = '-'.join(tokens[i] for i in range(words))
             command = self._commands.get(name.lower())
             if command:

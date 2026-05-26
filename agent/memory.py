@@ -189,6 +189,7 @@ class ChatMemory:
     
     def _trim(self):
         """Remove oldest exchanges until under the character limit."""
+        print("Trimming memory...")
         while self.total_chars > self.max_chars and self._exchanges:
             oldest = self._exchanges.pop(0)
             self.total_chars -= len(oldest["content"])
