@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import ast
-from rich.prompt import Prompt
 from dataclasses import dataclass, field
 from typing import Callable, Optional
+from prompt_toolkit.shortcuts import choice
 
 from agent.console import console
 
@@ -232,24 +232,22 @@ def _cmd_skills(agent, params):
 )
 def _cmd_models(agent, params):
     models = agent.get_models()
-    pr = ""
-    idx = -1
-    for (i, model) in enumerate(models):
-        pr += f"{i}: [green]{model.id}[/]\n"
-        idx = i
-    console.print(pr)
 
-    console.print()
-    index_str = Prompt.ask("Choose a model", choices=[f"{i}" for i in range(idx+1)], default='0', case_sensitive=False)
-    
-    model = models.data[int(index_str)]
+    opts = [(f"{model.id}", f"{model.id}") for (_, model) in enumerate(models)]
+    defa = models.data[0].id
+    console.print(f"default: {defa}")
+    result = choice(
+        message="Choose a model",
+        options=opts,
+        default=defa,
+    )
 
     try:
-        agent.set_model(model.id)
+        agent.set_model(result)
     except NameError as e:
         return f"[red]ERROR:[/] {e}"
         
-    return f"[green]OK:[/] model: {model.id}"
+    return f"[green]OK:[/] model: {result}"
         
 
 @cmd(
