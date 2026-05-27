@@ -160,7 +160,7 @@ def _cmd_showthinking(agent, params):
       "List all notes",
 )
 def _cmd_notes_list(agent, params):
-    notes = agent.memory.get_notes()
+    notes = agent.core.memory.get_notes()
     buff = ""
     for note in notes:
         buff += f"📋︎  [blue]{note['id']}[/blue] ({note['category']}):\n"
@@ -176,18 +176,18 @@ def _cmd_notes_list(agent, params):
 )
 def _cmd_notes_add(agent, params):
     if params:
-        agent.memory.add_note(" ".join(params))
+        agent.core.memory.add_note(" ".join(params))
         return True, "note added successfully", None
            
     return False, "please, provide a note", None
 
-def _agent_memory(agent):
-    return f"[red]===== AGENT MEMORY =====[/red]\n\n{agent.memory.get_formatted()}\n\n"
+def _agent_memory(core):
+    return f"[red]===== AGENT MEMORY =====[/red]\n\n{core.memory.get_formatted()}\n\n"
 
-def _chat_memory(agent):
-    chat = agent.memory.get_formatted_chat()
+def _chat_memory(core):
+    chat = core.memory.get_formatted_chat()
     chars = len(chat)
-    max = agent.config.get("agent.max_chat_history")
+    max = core.config.get("agent.max_chat_history")
     chat = f"[red]===== CHAT MEMORY ===== [/red]\n\n{chat}\n\n[red underline]CHAT MEM SIZE:[/red underline] {chars}/{max} ({float(chars) * 100.0/float(max):.2f}%)\n\n"
     return chat
     
@@ -205,14 +205,14 @@ def _cmd_memory(agent, params):
     if params:
         subcommand = params[0].lower()
         if subcommand == "agent":
-            return True, None, _agent_memory(agent)
+            return True, None, _agent_memory(agent.core)
         elif subcommand == "chat":
-            return True, None, _chat_memory(agent)
+            return True, None, _chat_memory(agent.core)
         else:
             return False, f"unrecognized subcommand '{subcommand}'", None
     else:
         # Print all
-        return True, None, _agent_memory(agent) + _chat_memory(agent)
+        return True, None, _agent_memory(agent.core) + _chat_memory(agent.core)
 
 
 @cmd(
@@ -229,15 +229,18 @@ def _cmd_tools(agent, params):
       "List loaded skills ⚔",
 )
 def _cmd_skills(agent, params):
-    return True, None, agent.skills.get_skills_str()
+    return True, None, agent.core.skills.get_skills_str()
 
 @cmd(
       "/models",
       "Configure the model to use."
 )
 def _cmd_models(agent, params):
-    models = agent.get_models()
-
+    try:
+        models = agent.core.get_models()
+    except Exception as e:
+        return False, f"{e}", None
+        
     opts = [(f"{model.id}", f"{model.id}") for (_, model) in enumerate(models)]
     defa = models.data[0].id
 
@@ -251,7 +254,7 @@ def _cmd_models(agent, params):
     )
 
     try:
-        agent.set_model(result)
+        agent.core.set_model(result)
     except NameError as e:
         return False, f"{e}", None
         
@@ -261,8 +264,11 @@ def _cmd_models(agent, params):
       "/config",
       "Configure the base URL and API key",
 )
-def _cmd_configure(agent, params):
+def _cmd_config(agent, params):
     from agent.config import get_config
+    if params:
+        return False, "/config does not get any parameters", None
+
     config = get_config()
     base_url = config.get("model.base_url")
     api_key = config.get("model.api_key")
@@ -273,7 +279,7 @@ def _cmd_configure(agent, params):
     config.set("model.base_url", new_url)
     config.set("model.api_key", new_key)
 
-    ok, msg = agent.initialize_client()
+    ok, msg = agent.core.initialize_client()
     if not ok:
         return False, f"{msg}", None
 
@@ -311,8 +317,8 @@ def _cmd_config_set(agent, params):
                 new_value = smart_cast(value, t)
                 config.set(key, new_value)
 
-                if hasattr(agent, key):
-                    setattr(agent, key, new_value)
+                if hasattr(agent.core, key):
+                    setattr(agent.core, key, new_value)
 
                 return True, f"{key}: {value}", None
             

@@ -7,6 +7,7 @@ The core:
 4. Loops until max turns or a text response
 """
 
+import json
 import os
 import time
 import tiktoken
@@ -125,12 +126,15 @@ class Core:
         tool_calls = {}
         first_chunk_time = None
         thinking_end = False
+        prompt_stopped = False
+
 
         for chunk in response:
             # Stop prompt spinner
-            if self.prompt_callback:
-                self.prompt_callback(Stage.STOP)
-                
+            if not prompt_stopped and prompt_callback:
+                prompt_callback(Stage.STOP)
+                prompt_stopped = True
+
             delta = chunk.choices[0].delta
             now = time.time()
 
@@ -220,17 +224,16 @@ class Core:
                                                                   prompt_callback,
                                                                   reasoning_callback,
                                                                   content_callback,
-                                                                  cancel_callback,
                                                                   error_callback)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
             # Close the response stream to stop the API call
             response.close()
             if cancel_callback:
-                cancel_callback()
+                cancel_callback(e)
 
-        return self._finish_inference(first_chunk_time)
+        return self._finish_inference(first_chunk_time, tool_calls)
 
-    def _finish_inference(self, first_chunk_time):
+    def _finish_inference(self, first_chunk_time, tool_calls):
         self.thinking = False
         self.generating = False
         now = time.time()
@@ -262,7 +265,9 @@ class Core:
             tool_callback=None,
             cancel_callback=None,
             error_callback=None):
-        """Run a turn interaction with a user message.
+        """
+        Run a turn interaction with a user message. All callbacks are Agent methods, so
+        they take the agent as the first parameter.
 
         Args:
             user_input: The user's message string.
@@ -370,7 +375,7 @@ class Core:
         n_tools = 0
         # Execute each tool call
         for tc in tool_calls:
-            n_tools = ntools + 1
+            n_tools += 1
             tool_name = tc["function"]["name"]
             tool_args = tc["function"]["arguments"]
 
@@ -387,4 +392,25 @@ class Core:
             })
 
         return n_tools
+
+    def save_memory(self):
+        """Persists the memory"""
+        self.memory.save()
         
+    def get_models(self):
+        """Gets a list with all the available models."""
+        try:
+            return self.client.models.list()
+        except Exception as e:
+            raise RuntimeError("Error getting models. Please check the endpoint is up and reachable.") from e
+
+    def set_model(self, model_name):
+        """Sets the model to use."""
+        models = self.get_models()
+        for model in models:
+            if model_name == model.id:
+                # Match, set and return
+                self.config.set("model.name", model_name)
+                return
+
+        raise NameError(f"the model '{model_name}' does not exsit")
