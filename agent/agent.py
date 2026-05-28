@@ -159,6 +159,15 @@ class Agent:
         """Run the agent in interactive mode."""
         import shutil
         term_size = shutil.get_terminal_size((80, 20))
+        monkee = '''
+                                   .-"-.␍
+                                 _/.-.-.\_␍
+                                ( ( o o ) )␍
+                                 |/  "  \|
+                                  \ .-. /␍
+                                  /`"""`\␍
+                                 /       \␍
+        '''
         if term_size.columns < 80:
             languragent="LANGUR AGENT"
         else:
@@ -167,7 +176,7 @@ class Agent:
 ██     ██▀██ ███▄██ ██ ▄▄ ██ ██ ██▄█▄   ██▄▄██ ██ ▄▄ ██▄▄  ███▄██   ██  
 ██████ ██▀██ ██ ▀██ ▀███▀ ▀███▀ ██ ██   ██  ██ ▀███▀ ██▄▄▄ ██ ▀██   ██  
             '''
-        title = Align.center(f"[title]{languragent}[/title]", vertical='middle')
+        title = Align.center(f"[title]{monkee}{languragent}[/title]", vertical='middle')
         console.print(Panel(title, box=box.HEAVY, border_style="title", subtitle="Monkee at your service!"))
         console.print()
 
