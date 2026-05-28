@@ -8,7 +8,6 @@ The core:
 """
 
 import json
-import os
 import time
 import tiktoken
 import openai
@@ -19,7 +18,6 @@ from agent.config import get_config
 from agent.memory import Memory
 from agent.skills import SkillLoader
 from agent.tools import get_tool_schemas, execute_tool
-from agent.commands import registry
 
 class TurnCancelled(Exception):
     """Raised when the user cancels an LLM turn mid-stream."""
@@ -72,21 +70,15 @@ class Core:
             - An optional message
         """
 
-        # Initialize OpenAI client
-        api_key = self.config.get("model.api_key") or os.environ.get("LANGUR_API_KEY", "")
-
-        if not api_key:
-            cmd, _ = registry.lookup(["/config"])
-            registry.execute(self, cmd, None)
-            return self.initialize_client()
-        
+        # The openai package reads OPENAI_API_KEY from the environment automatically.
+        # dotenv has already loaded .env into os.environ at this point (in config.py).
         base_url = self.config.get("model.base_url", "http://127.0.0.1:1234/v1")
         # Auto-append /v1 for LM Studio / local API servers
         if base_url and not base_url.endswith("/v1"):
             base_url = base_url.rstrip("/") + "/v1"
         
         try:
-            self.client = openai.OpenAI(api_key=api_key, base_url=base_url or None)
+            self.client = openai.OpenAI(base_url=base_url or None)
         except openai.OpenAIError as err:
             return False, f"OpenAI endpoint creation: {err}"
 
@@ -310,8 +302,6 @@ class Core:
         Returns:
             The final text response from the LLM.
         """
-        # Record start time
-        start = time.time()
 
         # Record user input in chat memory
         self.memory.add_chat_exchange("user", user_input)

@@ -29,14 +29,24 @@ curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/master/inst
 
 ### Running
 
-Add your API key (if any), and run.
+Run the agent:
 
 ```bash
-# Set API key:
-export LANGUR_API_KEY=your-api-key
-# Run the agent:
 langur-agent
 ```
+
+If you need an API key to access the endpoint, put it in the `.env` file. Langur Agent looks for the `.env` file in the following locations, in order:
+
+- Current directory, `./.env`
+- Home directory, `$HOME/.env`
+
+Create the `.env` file with the API key:
+
+```bash
+echo "OPENAI_API_KEY=your-api-key-here" > .env
+```
+
+> The agent uses `python-dotenv` to load `.env` at startup. The `openai` package reads `OPENAI_API_KEY` from the environment automatically. You can also set `OPENAI_API_KEY` in your shell profile.
 
 <p align="center">
 <img src="screenshot.jpg" 
@@ -67,8 +77,7 @@ It works with any OpenAI-compatible endpoint, so LM Studio, Ollama, OpenWebUI, o
 model:
   # Model name
   name: qwen/qwen3.6-35b-a3b
-  # Local API key
-  api_key: ""
+  # URL of OpenAI endpoint
   base_url: "http://127.0.0.1:1234/v1"
   # Temperature setting for inference
   temperature: 0.8

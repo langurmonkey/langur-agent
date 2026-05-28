@@ -360,7 +360,7 @@ def _cmd_models(agent, params):
         
 @cmd(
       "/config",
-      "Configure the base URL and API key",
+      "Configure the base URL (API key managed via OPENAI_API_KEY environment variable, e.g., in ~/.env)",
 )
 def _cmd_config(agent, params):
     from agent.config import get_config
@@ -369,13 +369,10 @@ def _cmd_config(agent, params):
 
     config = get_config()
     base_url = config.get("model.base_url")
-    api_key = config.get("model.api_key")
 
-    new_url = Prompt.ask("Base URL", default=base_url)
-    new_key = Prompt.ask("API key", default=api_key)
+    new_url = Prompt.ask("Base URL", default=base_url or "")
 
     config.set("model.base_url", new_url)
-    config.set("model.api_key", new_key)
 
     ok, msg = agent.core.initialize_client()
     if not ok:

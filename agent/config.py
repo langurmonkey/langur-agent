@@ -7,12 +7,18 @@ Follows XDG Base Directory spec:
 - If neither exists, returns defaults
 """
 
-import os
 import shutil
 import yaml
 import json
 from pathlib import Path
 from xdg_base_dirs import xdg_config_home
+from dotenv import load_dotenv
+
+# Load .env: current directory first, then home directory (without overwriting)
+_cwd_env = Path(".") / ".env"
+if _cwd_env.exists():
+    load_dotenv(_cwd_env)
+load_dotenv(Path.home() / ".env", override=False)
 
 DEFAULT_CONFIG = Path(__file__).parent.parent / "config.yaml"
 XDG_CONFIG_DIR = xdg_config_home() / "langur-agent"
@@ -39,7 +45,6 @@ def _get_defaults():
         "model": {
             "provider": "openai",
             "name": "gpt-4o-mini",
-            "api_key": os.environ.get("LANGUR_API_KEY", ""),
             "base_url": "",
             "temperature": 0.8,
         },

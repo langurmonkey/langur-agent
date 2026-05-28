@@ -249,7 +249,9 @@ class Agent:
                 continue
 
             else:
-                console.print(f"\n[agent]⩥ Langur Agent ⩤ [/agent]  [accent]⇒ {self.core.config.get('model.name')}[/accent]")
+                console.print()
+                console.rule(style="agent")
+                console.print(f"[agent]⩥ Langur Agent ⩤ [/agent]  [accent]⇒ {self.core.config.get('model.name')}[/accent]")
                 console.print("  [kbd]Ctrl[/kbd]+[kbd]C[/kbd]: Cancel turn\n")
                 (response,
                     total_tokens,
