@@ -6,10 +6,8 @@ handling to the core.
 
 from xdg_base_dirs import xdg_data_home
 from functools import partial
-from textwrap import shorten
 
 from rich import box
-from rich.markup import escape
 from rich.prompt import Prompt
 from rich.align import Align
 from rich.markdown import Markdown
