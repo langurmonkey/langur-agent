@@ -75,7 +75,7 @@ class CommandRegistry:
             params and
             (params[0].lower() == "-h" or params[0].lower() == "help")
         ):
-            return self._command_str(cmd)
+            return True, None, self._command_str(cmd), None, False
                 
         ok, msg, content, markdown = cmd.handler(agent, params)
         should_exit = msg in ("EXIT", "exit")

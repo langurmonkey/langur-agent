@@ -89,7 +89,7 @@ class Agent:
 
     def cancel_callback(self, e: KeyboardInterrupt):
         """Handles the Ctrl+c during inference, as a keyboard interrupt"""
-        console.print("\n[warn]⏹  Turn cancelled[/warn]")
+        console.print("\n[warn]⏹  Turn cancelled by user  ⏹[/warn]")
         raise TurnCancelled() from e
 
     def error_callback(self, e, msg):

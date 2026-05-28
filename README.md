@@ -105,26 +105,9 @@ You can enable `vi` mode for the current session with the [command](#commands) `
 
 **External editor**---In `vi` mode, exit INSERT mode (<kbd>Esc</kbd>), then press <kbd>v</kbd> to edit your prompt in an external editor (uses your `$VISUAL` or `$EDITOR` variable).
 
-### Commands
+### Slash commands
 
 There are a few commands available to use in the agent loop. You can list them with `/help`. Also, use `/[command-name] help` (e.g. `/config help`) to show additional help for a command.
-
-Below is a listing of all the slash commands.
-
-| Command(s) | Description | Examples |
-| :--- | :--- | :--- |
-| `/quit`, `/exit`, `/q` | Exit the agent | |
-| `/models` | Choose the model to use, interactively | |
-| `/notes` | List and add notes to memory | `/notes add The sky is blue`, `/notes list` |
-| `/memory` | List memory contents | `/memory`, `/memory agent`, `/memory chat` |
-| `/tools` | List available tools | |
-| `/skills` | List loaded skills | |
-| `/showthinking` | Show or hide thinking tokens | `/showthinking on`, `/showthinking off` |
-| `/vi` | Enable or disable vi mode input | `/vi on`, `/vi off` |
-| `/config` | Set configuration values or print config | `/config` (list), `/config model.temperature 0.6` |
-| `/help`, `/commands` | Show command help | |
-
-The `/config` slash command updates the in-memory configuration and persist it to disk. For properties that need further initialization (like vi mode), please use the appropriate commands (e.g. `/vi on`).
 
 ## Global memory
 
