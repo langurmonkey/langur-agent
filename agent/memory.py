@@ -9,6 +9,8 @@ when save() is called. On init, state is loaded from disk.
 """
 
 import json
+import datetime
+from textwrap import shorten
 from rich.markup import escape
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
@@ -122,8 +124,19 @@ class Memory:
     def get_chat_unformatted(self):
         return self._chat_history.get_unformatted()
 
-    def get_chat_formatted(self, num_exchanges: int = 0):
-        return self._chat_history.get_formatted(num_exchanges)
+    def get_chat_formatted(self,
+                           num_exchanges: int = 0,
+                           timestamps: bool = False,
+                           width: int = 0):
+        """
+        Returns the chat history as a formatted string.
+
+        Parameters:
+        - num_exchanges: int  - The number of most recent exchanges to add (0 for all)
+        - timestamps: bool    - Add timestamps to the output
+        - width: int          - Maximum width of each entry's content (0 to not truncate)
+        """
+        return self._chat_history.get_formatted(num_exchanges, timestamps, width)
 
     def add_chat_exchange(self, role, content):
         self._chat_history.add_exchange(role, content)
@@ -199,17 +212,20 @@ class ChatMemory:
             json.dump({"exchanges": self._exchanges}, f, indent=2)
     
     def add_exchange(self, role, content):
-        """Add a user input or assistant output to memory.
+        """
+        Add a user input or assistant output to memory.
         
-        Args:
-            role: "user" or "assistant"
-            content: The text content
+        Parameters:
+            role:str    - "user" or "assistant"
+            content:str - The text content
         """
         char_count = len(content)
         
+        now_utc = datetime.datetime.now(datetime.UTC)
         # Add the new exchange
         self._exchanges.append({
             "role": role,
+            "utc": str(now_utc),
             "content": content,
         })
         self.total_chars += char_count
@@ -263,7 +279,7 @@ class ChatMemory:
         return self._exchanges
     
     
-    def get_formatted(self, num_exchanges):
+    def get_formatted(self, num_exchanges: int, timestamps: bool, width: int):
         """Return chat history formatted for the system prompt.
         
         Returns:
@@ -276,8 +292,12 @@ class ChatMemory:
         # Show most recent exchanges
         history = self._exchanges[-num_exchanges:]
         for turn in history:
+            t = f"({turn['utc']})" if timestamps and 'utc' in turn else ""
             content = escape(turn['content'])
-            lines.append(f"## {turn['role'].capitalize()}:")
+            if width > 0:
+                content = shorten(content, width=width)
+
+            lines.append(f"## {turn['role'].capitalize()}:\n`{t}`\n")
             lines.append(f"{content}\n\n")
         
         return "\n".join(lines)

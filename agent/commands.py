@@ -239,7 +239,7 @@ def _agent_memory(core):
     return core.memory.get_formatted()
 
 def _chat_memory(core, max_exchanges):
-    return core.memory.get_chat_formatted(max_exchanges)
+    return core.memory.get_chat_formatted(max_exchanges, timestamps=True)
 
 @cmd(
       "/memory",

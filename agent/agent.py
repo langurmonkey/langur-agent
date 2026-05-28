@@ -121,7 +121,7 @@ class Agent:
             "prompt": "ansiyellow",
             "frame.border": "ansiyellow",
             "bottom-toolbar": "#ffffff bg:#262626 noreverse",
-            "kbd": "#ffafaf bold",
+            "kbd": "#ffd787 bold",
             "model": "#0087d7"
         })
 
@@ -174,19 +174,15 @@ class Agent:
         console.print()
 
         # Print history
-        history = self.core.memory.get_chat_unformatted()
-        if history:
-            lines = []
-            for turn in history:
-                content = shorten(f"{escape(turn['content'])}", width=550)
-                lines.append(f"## {turn['role'].capitalize()}:")
-                lines.append(f"{content}")
+        chat_history = self.core.memory.get_chat_formatted(num_exchanges=15,
+                                                           timestamps=True,
+                                                           width=550)
 
-            curr, max, rate = self.core.memory.get_chat_stats()
-            console.print(Panel(Markdown('\n'.join(lines)),
-                            border_style="output-frame",
-                            title="Previous conversation",
-                            subtitle=f"Previous conversation stats: {curr}/{max} - {rate:.2f}%"))
+        curr, max, rate = self.core.memory.get_chat_stats()
+        console.print(Panel(Markdown(chat_history),
+                        border_style="output-frame",
+                        title="Previous conversation",
+                        subtitle=f"Previous conversation stats: {curr}/{max} - {rate:.2f}%"))
 
         console.print()
 

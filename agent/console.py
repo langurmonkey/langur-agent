@@ -21,7 +21,7 @@ langur_theme = Theme({
     "tool": "steel_blue3",
     "status": "white on grey15",
     "weak": "grey39",
-    "kbd": "light_pink1 bold on grey15", 
+    "kbd": "light_goldenrod1 bold on grey15", 
 
     "list-item": "cyan",
     "list-desc": "grey39",

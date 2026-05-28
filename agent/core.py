@@ -102,7 +102,7 @@ class Core:
             parts.append(memory_text)
 
         # Add chat history
-        chat_text = self.memory.get_chat_formatted()
+        chat_text = self.memory.get_chat_formatted(timestamps=False)
         if chat_text:
             parts.append(chat_text)
 
