@@ -4,7 +4,6 @@ The agent orchestrates the 'user-assistant' turns and delegates the actual turn
 handling to the core.
 """
 
-from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 from functools import partial
 from textwrap import shorten
@@ -34,11 +33,11 @@ try:
     _HAS_PROMPT_TOOLKIT = True
 
 except ImportError:
-    console.print("[red]ERROR:[/red] could not initialize prompt toolkit")
+    console.print("[error]ERROR:[/error] could not initialize prompt toolkit")
     _HAS_PROMPT_TOOLKIT = False
 
 
-txt_goodbye = "\n[bold blue]Goodbye![/bold blue]"
+txt_goodbye = "\n[accent-bold]Goodbye![/accent-bold]"
 
 
 class Agent:
@@ -58,7 +57,7 @@ class Agent:
                 if self.spinner_prompt:
                     self.spinner_prompt.stop()
                     self.spinner_prompt = None
-                console.print("[green]✓[/] ⏳ Prompt processed")
+                console.print("[ok]✓[/] ⏳ Prompt processed")
 
             case _:
                 raise RuntimeError(f"Prompt callback only has Start and Stop stages: {stage}")
@@ -68,31 +67,31 @@ class Agent:
         match stage.value:
             case Stage.START.value:
                 if show_thinking:
-                    console.print("[orange1]⇨[/] 💡 Thinking...")
+                    console.print("[accent]⇨[/] 💡 Thinking...")
                 else:
                     self.spinner_thinking = console.status("💡 Thinking...")
                     self.spinner_thinking.start()
                 
             case Stage.PROCESS.value:
                 if show_thinking:
-                    console.print(f"[grey39]{content}[/]", end="")
+                    console.print(f"[weak]{content}[/]", end="")
 
             case Stage.STOP.value:
                 if self.spinner_thinking:
                     self.spinner_thinking.stop()
                     self.spinner_thinking = None
-                console.print("[green]✓[/] 💡 Done thinking")
+                console.print("[ok]✓[/] 💡 Done thinking")
 
     def content_callback(self, content: str = None):
         """Called when new chunks arrive in streaming mode."""
         console.print(content, end="")
 
     def tool_callback(self, tool_name: str, tool_args):
-        console.print(f"[black on #66aa99] ⚙ Activating tool: {tool_name} [/black on #66aa99]")
+        console.print(f"[accent]⇨[/] 🛠️ Activating tool:  [tool]{tool_name}[/tool]")
 
     def cancel_callback(self, e: KeyboardInterrupt):
         """Handles the Ctrl+c during inference, as a keyboard interrupt"""
-        console.print("\n[bold yellow]⏹  Turn cancelled[/bold yellow]")
+        console.print("\n[warn]⏹  Turn cancelled[/warn]")
         raise TurnCancelled() from e
 
     def error_callback(self, e, msg):
@@ -101,7 +100,7 @@ class Agent:
 
     def _statusline(self, total_tokens, ntools, total_gen_time):
         len, max, rate =self.core.memory.get_chat_stats()
-        console.print(f"[black on #777777]   {total_gen_time:.1f}s  ∣  {total_tokens} tokens  |  {ntools} tools  |  Mem: {len}/{max} ({rate:.2f}%)    [/black on #777777]", justify="full")
+        console.print(f"[status]   {total_gen_time:.1f}s  ∣  {total_tokens} tokens  |  {ntools} tools  |  Mem: {len}/{max} ({rate:.2f}%)    [/status]", justify="full")
         console.print()
 
         
@@ -121,12 +120,15 @@ class Agent:
         style = Style.from_dict({
             "prompt": "ansiyellow",
             "frame.border": "ansiyellow",
+            "bottom-toolbar": "#ffffff bg:#262626 noreverse",
+            "kbd": "#ffafaf bold",
+            "model": "#0087d7"
         })
 
         # Vi mode
         vi_mode = self.core.config.get("agent.vi_mode", False)
 
-        # Slash commands autocompleter
+        # Slash commands auto completer
         commands = [cmd.name for cmd in registry.list_commands()]
         slash_completer = FuzzyWordCompleter(commands)
 
@@ -135,11 +137,12 @@ class Agent:
         history_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Toolbar
-        prompt_toolbar = lambda : HTML(" <b>Alt</b>+<b>Enter</b>: new line | <b>Enter</b>: submit prompt | <b>Ctrl</b>+<b>C</b>: quit")
+        def prompt_toolbar():
+            return HTML("  <kbd>Alt</kbd>+<kbd>Enter</kbd>: new line | <kbd>Enter</kbd>: submit prompt | <kbd>Ctrl</kbd>+<kbd>C</kbd>: quit")
 
         return PromptSession(
                     style=style,
-                    message="⩥ You ⩤\n❯ ",
+                    message=HTML(f"⩥ You ⩤ <model>⇒ {self.core.config.get('model.name')}</model>\n❯ "),
                     history=FileHistory(str(history_path)),
                     show_frame=True,
                     multiline=True,
@@ -166,8 +169,8 @@ class Agent:
 ██     ██▀██ ███▄██ ██ ▄▄ ██ ██ ██▄█▄   ██▄▄██ ██ ▄▄ ██▄▄  ███▄██   ██  
 ██████ ██▀██ ██ ▀██ ▀███▀ ▀███▀ ██ ██   ██  ██ ▀███▀ ██▄▄▄ ██ ▀██   ██  
             '''
-        title = Align.center(f"[bold blue]{languragent}[/bold blue]", vertical='middle')
-        console.print(Panel(title, box=box.HEAVY, border_style="blue", subtitle="Monkee at your service!"))
+        title = Align.center(f"[title]{languragent}[/title]", vertical='middle')
+        console.print(Panel(title, box=box.HEAVY, border_style="title", subtitle="Monkee at your service!"))
         console.print()
 
         # Print history
@@ -181,27 +184,20 @@ class Agent:
 
             curr, max, rate = self.core.memory.get_chat_stats()
             console.print(Panel(Markdown('\n'.join(lines)),
-                            border_style="magenta",
+                            border_style="output-frame",
                             title="Previous conversation",
                             subtitle=f"Previous conversation stats: {curr}/{max} - {rate:.2f}%"))
 
         console.print()
 
         # Get help
-        console.print("[gray39]Type [bold green]/help[/bold green] for command information[/gray39]")
+        console.print("[weak]Type [accent]/help[/accent] for command information[/weak]")
         if _HAS_PROMPT_TOOLKIT:
             self._session = self._create_prompt_session()
-            # Prompt Toolkit
-            style = Style.from_dict({
-                "prompt": "ansiyellow",
-            })
-            get_input = lambda: str(
-                self._session.prompt()
-            ).strip()
+            def get_input(): return str(self._session.prompt()).strip()
         else:
             # Rich
-            get_input = lambda: Prompt.ask(prompt="[yellow]⩥ You ⩤[/yellow]\n❯",
-                                           console=console)
+            def get_input(): return Prompt.ask(prompt="[user]⩥ You ⩤[/user]\n❯", console=console)
 
         # Wrap each callback to pass self
         prompt_cb = partial(self.prompt_callback)
@@ -238,29 +234,29 @@ class Agent:
                             if params:
                                 param_list = ' '.join(params)
                             else:
-                                params_list = ''
+                                param_list = ''
 
                             cont = content if content else Markdown(md)
                             console.print(Panel(cont,
-                                            border_style="magenta",
+                                            border_style="output-frame",
                                             title=f"{command.name} {param_list}",
                                             subtitle=f"{command.name} {param_list}"))
 
                         # Short status message
                         if msg:
-                            console.print(f"[green]OK[/green]: {msg}")
+                            console.print(f"[info]OK[/info]: {msg}")
                         console.print()
                     else:
                         if msg:
-                            console.print(f"[red]ERROR[/red]: {msg}")
+                            console.print(f"[error]ERROR[/error]: {msg}")
                 else:
-                    console.print(f"[red]ERROR:[/red] command not found: {user_input}")
+                    console.print(f"[error]ERROR:[/error] command not found: {user_input}")
                     
                 continue
 
             else:
-                console.print(f"\n[magenta]⩥ Langur Agent ⩤ [/magenta]  ⦗[blue]{self.core.config.get('model.name')}[/blue]⦘")
-                console.print("  [dim][bold]Ctrl[/bold]+[bold]C[/bold]: Cancel turn[/dim]\n")
+                console.print(f"\n[agent]⩥ Langur Agent ⩤ [/agent]  [accent]⇒ {self.core.config.get('model.name')}[/accent]")
+                console.print("  [kbd]Ctrl[/kbd]+[kbd]C[/kbd]: Cancel turn\n")
                 (response,
                     total_tokens,
                     ntools,

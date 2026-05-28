@@ -41,8 +41,8 @@ class SkillLoader:
             if skill_path.exists():
                 content = skill_path.read_text()
                 meta, _ = self._parse_frontmatter(content)
-                result += f"⚔ [cyan]{meta['name']}[/]\n"
-                result += f"[grey39]{meta['description']}[/]\n"
+                result += f"⚔ [list-item]{meta['name']}[/]\n"
+                result += f"[list-desc]{meta['description']}[/]\n"
         return result
 
     def _parse_frontmatter(self, content):

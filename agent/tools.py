@@ -83,8 +83,8 @@ def get_tools_str():
     discover_tools()
     result = ""
     for name, tool in _registry.items():
-        result += f"⚙ [cyan]{name}[/]\n"
-        result += f"[grey39]{tool['description']}[/]\n"
+        result += f"⚙ [list-item]{name}[/]\n"
+        result += f"[list-desc]{tool['description']}[/]\n"
     return result
 
 def discover_tools(tools_dir=None):

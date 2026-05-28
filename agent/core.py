@@ -14,7 +14,6 @@ import tiktoken
 import openai
 
 from enum import Enum
-from xdg_base_dirs import xdg_data_home
 
 from agent.config import get_config
 from agent.memory import Memory

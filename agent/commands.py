@@ -1,4 +1,9 @@
-"""Centralized slash command registry for langur-agent."""
+"""
+Centralized slash command registry.
+
+Contains all slash commands and the scaffolding necessary to register
+and execute them.
+"""
 
 from __future__ import annotations
 
@@ -60,11 +65,11 @@ class CommandRegistry:
         Execute a command.
 
         Returns:
-        - ok:bool - status of the operation
-        - msg:str - short message with an informative message
-        - content:str - long text in python rich format
-        - markdown:str - long text in markdown format
-        - should_exit:bool - boolean indicating whether the agent must exit
+        - ok: bool          - status of the operation
+        - msg: str          - short message with an informative message
+        - content: str      - long text in python rich format
+        - markdown: str     - long text in Markdown format
+        - should_exit: bool - boolean indicating whether the agent must exit
         """
         if (
             params and
@@ -75,6 +80,24 @@ class CommandRegistry:
         ok, msg, content, markdown = cmd.handler(agent, params)
         should_exit = msg in ("EXIT", "exit")
         return ok, msg, content, markdown, should_exit
+
+    def run_command(self, agent, command: str):
+        """
+        Shortcut to run a command from a string.
+
+        Returns:
+        - ok: bool          - status of the operation
+        - msg: str          - short message with an informative message
+        - content: str      - long text in python rich format
+        - markdown: str     - long text in Markdown format
+        - should_exit: bool - boolean indicating whether the agent must exit
+        """
+        cmd, params = self.lookup(command.split())
+        if cmd:
+            return self.execute(agent, cmd, params)
+        else:
+            raise RuntimeError(f"command not found: {command}")
+
 
     def list_commands(self) -> list[Command]:
         """Return all unique commands (deduplicated by primary name)."""
@@ -161,8 +184,7 @@ def _cmd_quit(agent, params):
 def _cmd_showthinking(agent, params):
     if params:
         state = params[0].lower() == "on"
-        cmd, pars = registry.lookup(["/config-set", "model.show_thinking", str(state)])
-        ok, msg, _, _, _ = registry.execute(agent, cmd, pars)
+        ok, msg, _, _, _ = registry.run_command(agent, "/config-set model.show_thinking " + str(state))
         return ok, msg, None, None
     return False, "/showthinking command needs a parameter (on/off)", None
 
@@ -288,7 +310,6 @@ def _cmd_memory_compact(agent, params):
 
         return True, f"memory compacted successfully from {len_before} to {len_after}", None, None
     except Exception as e:
-        console.print(e)
         return False, f"memory compact operation failed: {e}", None, None
 
 
@@ -360,7 +381,7 @@ def _cmd_config(agent, params):
     if not ok:
         return False, f"{msg}", None, None
 
-    return True, f"configuration modified", None, None
+    return True, "configuration saved successfully", None, None
     
 
 @cmd(
@@ -402,7 +423,7 @@ def _cmd_config_set(agent, params):
             else:
                 return False, f"Key '{key}' does not exist in the configuration", None, None
     else:
-        return False, f"/config needs two parameters: key and value", None, None
+        return False, "/config needs two parameters: key and value", None, None
             
 
 @cmd(
@@ -413,8 +434,7 @@ def _cmd_config_set(agent, params):
 def _cmd_vi(agent, params):
     if params:
         state = params[0].lower() == "on"
-        cmd, pars = registry.lookup(["/config-set", "agent.vi_mode", str(state)])
-        ok, msg, _, _, _ = registry.execute(agent, cmd, pars)
+        ok, msg, _, _, _ = registry.run_command(agent, "/config-set agent.vi_mode " + str(state))
         if ok:
             agent._create_prompt_session()
         return ok, msg, None, None
