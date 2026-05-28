@@ -1,5 +1,7 @@
 <h3 align="center"><img src="icon.png" alt="Langur Agent" width="130px"><br>Langur Agent - <i>A dead simple CLI agent for Linux and macOS</i></h3>
 
+---
+
 Langur Agent is a simple, open, hackable CLI AI agent for Linux. It supports **tools**, **skills**, and **persistent memory**. It connects to any service providing an OpenAI-compatible endpoint.
 
 - [Quickstart](#quickstart)

@@ -172,9 +172,9 @@ class Agent:
         console.print()
 
         # Print history
-        chat_history = self.core.memory.get_chat_formatted(num_exchanges=15,
+        chat_history = self.core.memory.get_chat_formatted(num_exchanges=3,
                                                            timestamps=True,
-                                                           width=550)
+                                                           width=250)
 
         curr, max, rate = self.core.memory.get_chat_stats()
         console.print(Panel(Markdown(chat_history),
