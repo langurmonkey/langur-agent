@@ -360,7 +360,7 @@ def _cmd_models(agent, params):
         
 @cmd(
       "/config",
-      "Configure the base URL (API key managed via OPENAI_API_KEY environment variable, e.g., in ~/.env)",
+      "Configure the agent",
 )
 def _cmd_config(agent, params):
     from agent.config import get_config

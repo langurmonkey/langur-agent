@@ -4,9 +4,13 @@
 import argparse
 import sys
 import traceback
+import os
+
 from importlib.metadata import version as get_version
 from rich import print
 from pathlib import Path
+from xdg_base_dirs import xdg_data_home
+
 from agent.console import console
 from agent import Agent
 
@@ -31,6 +35,7 @@ def main():
     )
     parser.add_argument(
         "-c", "--config",
+        type=str,
         metavar="PATH",
         help="Path to the configuration file",
     )
@@ -44,16 +49,21 @@ def main():
         help='Update langur-agent from upstream and reinstall',
     )
     parser.add_argument(
-        '-t', '--tui',
+        '-s', '--session',
+        type=str,
+        default='default',
+        help='Name of the session to create or continue',
+    )
+    parser.add_argument(
+        '-ls',
         action='store_true',
-        help='WIP! Use TUI mode based on textual',
+        help='List existing sessions',
     )
     args = parser.parse_args()
 
     # Handle --update
     if args.update:
         import subprocess
-        from xdg_base_dirs import xdg_data_home
         
         XDG_DATA = xdg_data_home() or str(Path.home() / ".local" / "share")
         install_dir = f"{XDG_DATA}/langur-agent/repository"
@@ -65,6 +75,17 @@ def main():
             subprocess.run(['git', 'pull'], cwd=install_dir, check=True)
             console.print("Update complete.")
         return
+
+    # List sessions
+    if args.ls:
+        import os
+        SESSIONS_DIR = xdg_data_home() / "langur-agent" / "sessions"
+        sessions = [f for f in os.listdir(SESSIONS_DIR) if os.path.isdir(os.path.join(SESSIONS_DIR, f))]
+        console.print("[accent]Sessions[/accent]:")
+        for sess in sessions:
+            console.print(f"- [bold]{sess}[/bold] - [dim]{os.path.join(SESSIONS_DIR, sess)}[/dim]")
+        return
+
 
     try:
         agent = Agent(config_path=args.config)

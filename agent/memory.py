@@ -15,7 +15,7 @@ from rich.markup import escape
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
-DEFAULT_MEMORY_DIR = xdg_data_home() / "langur-agent" / "memory"
+DEFAULT_MEMORY_DIR = xdg_data_home() / "langur-agent" / "sessions" / "default"
 
 # Singleton instance
 _instance = None
