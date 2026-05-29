@@ -85,7 +85,6 @@ if [ ! -d "\$INSTALL_DIR" ] || [ ! -f "\$INSTALL_DIR/pyproject.toml" ]; then
     echo "Error: Could not find langur-agent installation"
     exit 1
 fi
-cd "\$INSTALL_DIR"
 exec uv --project "\$INSTALL_DIR/pyproject.toml" run langur-agent "\$@"
 WRAPPER
 chmod +x "$BIN_DIR/langur-agent"
