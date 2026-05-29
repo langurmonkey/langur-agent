@@ -32,7 +32,7 @@ try:
     _HAS_PROMPT_TOOLKIT = True
 
 except ImportError:
-    console.print("[error]ERROR:[/error] could not initialize prompt toolkit")
+    console.print("[err]⨯[/] could not initialize prompt toolkit")
     _HAS_PROMPT_TOOLKIT = False
 
 
@@ -66,7 +66,7 @@ class Agent:
         match stage.value:
             case Stage.START.value:
                 if reasoning_visible:
-                    console.print("[accent]⇨[/] 💡 Thinking...")
+                    console.print("[info]⇨[/] 💡 Thinking...")
                 else:
                     self.spinner_thinking = console.status("💡 Thinking...")
                     self.spinner_thinking.start()
@@ -86,7 +86,7 @@ class Agent:
         console.print(content, end="")
 
     def tool_callback(self, tool_name: str, tool_args):
-        console.print(f"[accent]⇨[/] 🛠️ Activating tool:  [tool]{tool_name}[/tool]")
+        console.print(f"[info]⇨[/] 🛠️ Activating tool:  [tool]{tool_name}[/tool]")
 
     def cancel_callback(self, e: KeyboardInterrupt):
         """Handles the Ctrl+c during inference, as a keyboard interrupt"""
@@ -185,15 +185,17 @@ class Agent:
         session_dir = self.core.memory.session_dir
         created = self.core.memory.session_created
         accessed = self.core.memory.session_accessed
+        console.rule(style="weak")
         if new_session:
-            console.print(f"[dim]│[/dim] Session created: [accent-bold]{self.core.memory.session}[/accent-bold]")
-            console.print(f"[dim]│   location: {contractuser(session_dir)}[/dim]")
-            console.print(f"[dim]│   created: {created}[/dim]")
+            console.print(f"[info]⇨[/] Session created: [accent-bold]{self.core.memory.session}[/accent-bold]")
+            console.print(f"[dim]   location: {contractuser(session_dir)}[/dim]")
+            console.print(f"[dim]   created: {created}[/dim]")
         else:
-            console.print(f"[dim]│[/dim] Session created: [accent-bold]{self.core.memory.session}[/accent-bold]")
-            console.print(f"[dim]│   location: {contractuser(session_dir)}[/dim]")
-            console.print(f"[dim]│   created: {created}[/dim]")
-            console.print(f"[dim]│   last accessed: {accessed}[/dim]")
+            console.print(f"[info]⇨[/] Session restored: [accent-bold]{self.core.memory.session}[/accent-bold]")
+            console.print(f"[dim]   location: {contractuser(session_dir)}[/dim]")
+            console.print(f"[dim]   created: {created}[/dim]")
+            console.print(f"[dim]   last accessed: {accessed}[/dim]")
+        console.rule(style="weak")
 
         # Print history
         chat_history = self.core.memory.get_chat_formatted(num_exchanges=3,
@@ -209,8 +211,11 @@ class Agent:
 
         console.print()
 
-        # Get help
-        console.print("[weak]Type [accent]/help[/accent] for command information[/weak]")
+        # Info
+        console.rule(style="weak")
+        console.print("[info]⇨[/] [weak]Type [accent]/configure[/accent] to configure the agent interactively[/weak]")
+        console.print("[info]⇨[/] [weak]Type [accent]/help[/accent] for command information[/weak]")
+        console.rule(style="weak")
         if _HAS_PROMPT_TOOLKIT:
             self._session = self._create_prompt_session()
             def get_input(): return str(self._session.prompt()).strip()
@@ -264,13 +269,13 @@ class Agent:
 
                         # Short status message
                         if msg:
-                            console.print(f"[info]OK[/info]: {msg}")
+                            console.print(f"[ok]✓[/]: {msg}")
                         console.print()
                     else:
                         if msg:
-                            console.print(f"[error]ERROR[/error]: {msg}")
+                            console.print(f"[err]⨯[/]: {msg}")
                 else:
-                    console.print(f"[error]ERROR:[/error] command not found: {user_input}")
+                    console.print(f"[err]⨯[/] command not found: {user_input}")
                     
                 continue
 
@@ -297,7 +302,7 @@ class Agent:
                         continue  # skip status line, go straight back to prompt
                     self._statusline(total_tokens, ntools, total_gen_time)
                 except Exception as e:
-                    console.print(f"[error]ERROR:[/error] error sending prompt: {e}")
+                    console.print(f"[err]⨯[/] error sending prompt: {e}")
                     
 
         # Persist memory on session exit

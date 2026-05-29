@@ -18,6 +18,7 @@ langur_theme = Theme({
     "agent": "medium_orchid",
     "user": "gold1",
 
+    # Features
     "tool": "steel_blue3",
     "status": "white on grey15",
     "weak": "grey39",

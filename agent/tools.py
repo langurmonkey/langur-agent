@@ -11,8 +11,6 @@ Tools are discovered from the tools/ directory on startup.
 
 import json
 import importlib
-import inspect
-from textwrap import indent
 from pathlib import Path
 
 from agent.console import console
