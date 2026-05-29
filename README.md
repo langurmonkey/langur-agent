@@ -125,7 +125,7 @@ Internally, Langur Agent uses sessions to separate different memory histories. S
 langur-agent --session my-project
 ```
 
-You can also list the existing sessions:
+You can also list the existing sessions with `-ls`:
 
 ```bash
 uv run langur-agent --ls           
@@ -142,6 +142,8 @@ Sessions contain:
 - User profile
 
 For now, the configuration file is the same for all sessions.
+
+> Sessions are matched by the directory name in the sessions location (`~/.local/share/langur-agent/sessions`). You can rename a session by just renaming the directory! 
 
 ### `vi` mode
 
