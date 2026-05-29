@@ -11,7 +11,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import Callable
 
-from rich.prompt import Prompt
+from rich.prompt import Prompt, FloatPrompt
 from prompt_toolkit.shortcuts import choice
 from prompt_toolkit.formatted_text import HTML
 
@@ -99,10 +99,15 @@ class CommandRegistry:
 
 
     def list_commands(self) -> list[Command]:
-        """Return all unique commands (deduplicated by primary name)."""
+        """
+        Return all unique commands (deduplicated by primary name) and
+        in alphabetical order.
+        """
+        import collections
         seen = set()
         result = []
-        for cmd in self._commands.values():
+        commands = collections.OrderedDict(sorted(self._commands.items()))
+        for cmd in commands.values():
             if cmd.name not in seen:
                 seen.add(cmd.name)
                 result.append(cmd)
@@ -217,13 +222,12 @@ def _cmd_reasoning(agent, params):
         visible = choice(
             message="Display reasoning:",
             options=opts,
-            default=defa,
+            default=str(defa).lower(),
             bottom_toolbar=HTML(
                 " <b>↑</b>/<b>↓</b>: select | <b>Enter</b>: accept"
             ),
         )
         visible_bool = visible == "true"
-        console.print(f"{visible}, {visible_bool}")
         config.set("model.reasoning_visible", visible_bool)
     except Exception as e:
         console.print(e)
@@ -390,8 +394,9 @@ def _cmd_skills(agent, params):
     return True, None, agent.core.skills.get_skills_str(), None
 
 @cmd(
-      "/models",
-      "Configure the model to use."
+      "/model",
+      "Configure the model to use",
+      aliases=["/models"]
 )
 def _cmd_models(agent, params):
     try:
@@ -419,10 +424,10 @@ def _cmd_models(agent, params):
     return True, f"model: {result}", None, None
         
 @cmd(
-      "/config",
-      "Configure the agent",
+      "/url",
+      "Configure the base URL",
 )
-def _cmd_config(agent, params):
+def _cmd_url(agent, params):
     from agent.config import get_config
     if params:
         return False, "this command does not take any parameters", None, None
@@ -430,7 +435,7 @@ def _cmd_config(agent, params):
     config = get_config()
     base_url = config.get("model.base_url")
 
-    new_url = Prompt.ask("Base URL", default=base_url or "")
+    new_url = Prompt.ask(" Enter the endpoint URL", default=base_url or "")
 
     config.set("model.base_url", new_url)
 
@@ -442,61 +447,86 @@ def _cmd_config(agent, params):
     
 
 @cmd(
-      "/config-list",
+      "/config-show",
        "Show current configuration",
 )
-def _cmd_config_list(agent, params):
+def _cmd_config_show(agent, params):
+    if params:
+        return False, "this command does not take any parameters", None, None
+
     from agent.config import log_config
     return True, None, log_config(), None
 
 @cmd(
-      "/config-set",
-       "Set configuration values",
-       examples=[
-           "/config set model.reasoning_effort low     [dim]# set reasoning effort to low[/dim]",
-           "/config set model.reasoning_visible False  [dim]# do not show reasoning[/dim]",
-           "/config set agent.temperature 0.8          [dim]# set temperature[/dim]"
-       ]
+    "/config",
+    "Configure the agent interactively",
+    aliases = ["/configure"],
 )
-def _cmd_config_set(agent, params):
+def _cmd_config(agent, params):
     if params:
-        # Set configuration values
-        if len(params) != 2:
-            return False, "/config needs two parameters: key and value", None, None
-        else:
-            from agent.config import get_config
-            config = get_config()
-            key = params[0]
-            value = params[1]
-            if config.has(key):
-                t = type(config.get(key))
-                new_value = smart_cast(value, t)
-                config.set(key, new_value)
+        return False, "this command does not take any parameters", None, None
 
-                if hasattr(agent.core, key):
-                    setattr(agent.core, key, new_value)
+    # URL, model, reasoning, temperature, vi
+    commands = ["/url", "/model", "/reasoning", "/temperature", "/vi"]
 
-                return True, f"{key}: {value}", None, None
-            
-            else:
-                return False, f"Key '{key}' does not exist in the configuration", None, None
-    else:
-        return False, "/config needs two parameters: key and value", None, None
-            
+    for command in commands:
+        ok, msg, _, _, _ = registry.run_command(agent, command)
+        if not ok:
+            return False, msg, None, None
+        
+    return True, "configuration updated", None, None
+
 
 @cmd(
+    "/temperature",
+    "Set the inference temperature parameter in 0..2",
+    aliases=["/temp", "/t"],
+)            
+def _cmd_temperature(agent, params):
+    if params:
+        return False, "this command does not take any parameters", None, None
+
+    from agent.config import get_config
+    config = get_config()
+    
+    current_temp = config.get("model.temperature")
+
+    new_temp = FloatPrompt.ask(" Enter the temperature [0..2]", default=current_temp)
+
+    if new_temp < 0 or new_temp > 2:
+        return False, f"temperature out of [0..2] range: {new_temp}", None, None
+
+    config.set("model.temperature", new_temp)
+
+    return True, f"temperature: {new_temp}", None, None
+    
+@cmd(
       "/vi",
-       "Enable or disable vi input mode",
-       examples=["/vi (on|off)"]
+       "Enable/disable vi input mode",
 )
 def _cmd_vi(agent, params):
     if params:
-        state = params[0].lower() == "on"
-        ok, msg, _, _, _ = registry.run_command(agent, "/config-set agent.vi_mode " + str(state))
-        if ok:
-            agent._create_prompt_session()
-        return ok, msg, None, None
-    return False, "/vi command needs a parameter (on/off)", None, None
+        return False, "this command does not take any parameters", None, None
+
+    from agent.config import get_config
+    config = get_config()
+
+    opts = [("true", "On"), ("false", "Off")]
+    defa = config.get("agent.vi_mode")
+
+    state = choice(
+        message="Vi input mode:",
+        options=opts,
+        default=str(defa).lower(),
+        bottom_toolbar=HTML(
+            " <b>↑</b>/<b>↓</b>: select | <b>Enter</b>: accept"
+        ),
+    )
+    state_bool = state == "true"
+    config.set("agent.vi_mode", state_bool)
+    agent._create_prompt_session()
+    return True, f"vi mode: {state_bool}", None, None
+
 
 @cmd(
     "/help",
