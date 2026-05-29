@@ -8,7 +8,6 @@ from functools import partial
 
 from rich import box
 from rich.prompt import Prompt
-from rich.table import Table
 from rich.align import Align
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -258,9 +257,10 @@ class Agent:
 
                             cont = content if content else Markdown(md)
                             console.print(Panel(cont,
-                                            border_style="output-frame",
-                                            title=f"{command.name} {param_list}",
-                                            subtitle=f"{command.name} {param_list}"))
+                                                border_style="output-frame",
+                                                title=f"{command.name} {param_list}",
+                                                subtitle=f"{command.name} {param_list}",
+                                                highlight=True))
 
                         # Short status message
                         if msg:
@@ -279,22 +279,26 @@ class Agent:
                 console.rule(style="agent")
                 console.print(f"[agent]⩥ Langur Agent ⩤ [/agent]  [accent]⇒ {self.core.config.get('model.name')}[/accent]")
                 console.print("  [kbd]Ctrl[/kbd]+[kbd]C[/kbd]: Cancel turn\n")
-                (response,
-                    total_tokens,
-                    ntools,
-                    total_gen_time) = self.core.run_turn(
-                                                      user_input,
-                                                      prompt_cb,
-                                                      reasoning_cb,
-                                                      content_cb,
-                                                      tool_cb,
-                                                      cancel_cb,
-                                                      error_cb
-                                                  )
-                console.print()
-                if response == "[Cancelled]":
-                    continue  # skip status line, go straight back to prompt
-                self._statusline(total_tokens, ntools, total_gen_time)
+                try:
+                    (response,
+                        total_tokens,
+                        ntools,
+                        total_gen_time) = self.core.run_turn(
+                                                          user_input,
+                                                          prompt_cb,
+                                                          reasoning_cb,
+                                                          content_cb,
+                                                          tool_cb,
+                                                          cancel_cb,
+                                                          error_cb
+                                                      )
+                    console.print()
+                    if response == "[Cancelled]":
+                        continue  # skip status line, go straight back to prompt
+                    self._statusline(total_tokens, ntools, total_gen_time)
+                except Exception as e:
+                    console.print(f"[error]ERROR:[/error] error sending prompt: {e}")
+                    
 
         # Persist memory on session exit
         self.core.save_memory()

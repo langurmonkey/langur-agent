@@ -145,16 +145,19 @@ class CommandRegistry:
 registry = CommandRegistry()
 
 # Decorator for commands
-# Commands return three values:
-# ok:bool      - False if there was an error
-# msg:str      - A one-line status message
-# content:str  - Multi-line content in rich formatting
-# markdown:str - Multi-line content in markdown
 def cmd(name: str,
         description: str = "",
         aliases: list[str] = [],
         examples: list[str] = []):
-    """Decorator to register commands."""
+    """
+    Decorator to register commands.
+
+    Commands return:
+    - ok:bool      - False if there was an error
+    - msg:str      - A one-line status message
+    - content:str  - Multi-line content in rich formatting
+    - markdown:str - Multi-line content in markdown
+    """
 
     def command(handler):
         registry.register(Command(name,
@@ -166,7 +169,7 @@ def cmd(name: str,
     return command
 
 
-# --- Built-in command handlers ---
+# Built-in command handlers
 @cmd(
       "/quit",
       "Exit the agent",
@@ -190,10 +193,10 @@ def _cmd_showthinking(agent, params):
 
 
 @cmd(
-      "/notes-list",
+      "/notes",
       "List all notes",
 )
-def _cmd_notes_list(agent, params):
+def _cmd_notes(agent, params):
     notes = agent.core.memory.get_notes()
     buff = ""
     for note in notes:
@@ -215,16 +218,37 @@ def _cmd_notes_add(agent, params):
            
     return False, "please, provide a note", None, None
 
+@cmd(
+    "/session",
+    "Print session information",
+)
+def _cmd_session(agent, params):
+    if params:
+        return False, "this command does not take any arguments", None, None
+
+    from agent.utils import contractuser
+    mem = agent.core.memory
+    name = mem.session
+    session_dir = mem.session_dir
+    created = mem.session_created
+    accessed = mem.session_accessed
+    result = ""
+    result += f"Name:           [accent-bold]{name}[/accent-bold]\n"
+    result += f"Location:       {contractuser(session_dir)}\n"
+    result += f"Created:        {created}\n"
+    result += f"Last accessed:  {accessed}"
+    return True, None, result, None
+    
     
 @cmd(
-    "/memory-clear",
-    "Clear the current chat memory",
+    "/session-clear",
+    "Clear the current session chat memory",
     examples=[
-        "/memory clear        # Clear all chat memory",
-        "/memory clear 10     # Clear the 10 oldest chat exchanges",
+        "/session clear        # Clear chat memory for this sesson",
+        "/session clear 10     # Clear the 10 oldest chat exchanges of this session",
     ]
 )
-def _cmd_memory_clear(agent, params):
+def _cmd_session_clear(agent, params):
     n = 0
     if params:
         try:
@@ -235,45 +259,42 @@ def _cmd_memory_clear(agent, params):
     cleared = agent.core.memory.clear_chat(n)
     return True, f"{cleared} exchanges cleared", None, None
     
-def _agent_memory(core):
-    return core.memory.get_formatted()
-
 def _chat_memory(core, max_exchanges):
     return core.memory.get_chat_formatted(max_exchanges, timestamps=True)
 
 @cmd(
-      "/memory",
-      "List memory contents",
-      examples=[
-          "/memory  # list all contents",
-          "/memory agent [dim]# only list agent memory (profile and notes)[/dim]",
-          "/memory chat  [dim]# only list chat memory[/dim]"
-      ]
+      "/session-agent",
+      "Show the session agent memory contents (user profile and notes)",
 )
-def _cmd_memory(agent, params):
+def _cmd_session_agent(agent, params):
     if params:
-        subcommand = params[0].lower()
-        if subcommand == "agent":
-            return True, None, None, _agent_memory(agent.core)
-        elif subcommand == "chat":
-            chars, max, rate = agent.core.memory.get_chat_stats()
-            stats = f"Memory status: {chars}/{max} ({rate:.2f}%)"
-            return True, stats, None, _chat_memory(agent.core, 0)
-        else:
-            return False, f"unrecognized subcommand '{subcommand}'", None, None
-    else:
-        # Print all
-        mem = "# Agent memory\n\n" + _agent_memory(agent.core)
-        mem += "\n\n# Chat memory\n\n" + _chat_memory(agent.core, 15)
-        return True, None, None, mem
+        return False, "this command does not take any arguments", None, None
+
+    mem =  agent.core.memory.get_formatted()
+    # Format in Markdown
+    return True, None, None, mem
 
 @cmd(
-    "/memory-compact",
-    "Compact the chat history by summarizing it into a shorter form."   
+      "/session-chat",
+      "Show the session chat memory contents",
 )
-def _cmd_memory_compact(agent, params):
+def _cmd_session_chat(agent, params):
     if params:
-        return False, f"this command does not take any arguments", None, None
+        return False, "this command does not take any arguments", None, None
+
+    mem =  agent.core.memory.get_formatted()
+    chars, max, rate = agent.core.memory.get_chat_formatted(0)
+    stats = f"Memory status: {chars}/{max} ({rate:.2f}%)"
+    # Format in Markdown
+    return True, stats, None, mem
+
+@cmd(
+    "/session-compact",
+    "Compact the session chat history by summarizing it into a shorter form."   
+)
+def _cmd_session_compact(agent, params):
+    if params:
+        return False, "this command does not take any arguments", None, None
 
     history_text = agent.core.memory.get_chat_formatted()
     len_before = len(history_text) if history_text else 0

@@ -103,7 +103,6 @@ def main():
         agent.run_interactive()
     except Exception as e:
         print(e)
-        print(traceback.format_exc())
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ langur_theme = Theme({
     # Global
     "accent": "deep_sky_blue3",
     "accent-bold": "bold deep_sky_blue3",
-    "output-frame": "medium_orchid",
+    "output-frame": "gray39",
 
     # Turns
     "agent": "medium_orchid",

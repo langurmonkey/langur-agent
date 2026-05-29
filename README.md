@@ -137,9 +137,9 @@ Sessions:
 Sessions contain:
 
 - The input history
-- Chat memory
-- Notes
-- User profile
+- Chat memory (see [chat memory](#chat-memory))
+- Notes (see [session memory](#session-memory))
+- User profile (see [session memory](#session-memory))
 
 For now, the configuration file is the same for all sessions.
 
@@ -155,9 +155,10 @@ You can enable `vi` mode for the current session with the [command](#commands) `
 
 There are a few commands available to use in the agent loop. You can list them with `/help`. Also, use `/[command-name] help` (e.g. `/config help`) to show additional help for a command.
 
-## Global memory
+## Session memory
 
-Persistent memory follows XDG Base Directory spec in `~/.local/share/langur-agent/memory/`:
+Persistent memory follows XDG Base Directory spec in `~/.local/share/langur-agent/session/$SESSION_NAME`:
+
 - `user_profile.json` — user information
 - `notes.json` — persistent notes (added via `save_note` tool)
 
@@ -167,21 +168,22 @@ Persistent memory follows XDG Base Directory spec in `~/.local/share/langur-agen
 - `save_memory` tool explicitly persists memory to disk
 - Memory is auto-saved when the agent exits (interactive mode)
 
-## Rolling chat memory
+## Chat memory
 
-In addition to persistent memory, the agent maintains a **rolling chat history** of recent user input and assistant output pairs. This provides context that survives beyond the LLM's context window.
+In addition to persistent memory, the agent maintains a **chat history** of recent user input and assistant output pairs. This provides context that survives beyond the LLM's context window. Here is how it works:
 
-**How it works:**
 - Each user message and assistant response is stored in memory
-- Automatically trimmed when exceeding the configured character limit
-- Attached to the system prompt on each turn
+- Reasoning is omitted from chat memory
+- Automatically compacted when exceeding the configured character limit
+- The user can trigger the compaction any time with `/memory compact`
+- Chat memory is attached to the system prompt on each turn
 - The agent displays the last 10 exchanges, with long messages truncated
 
 **Persistence:**
-- Chat history is persisted to `~/.local/share/langur-agent/memory/chat_history.json`
+- Chat history is persisted to `~/.local/share/langur-agent/session/$SESSION_NAME/chat_history.json`
 - Automatically loaded on startup
 - Saved after every exchange (user input or assistant response)
-- Trimmed history is also persisted to disk
+- Compacted history is also persisted to disk
 
 **Configuration:**
 ```yaml
@@ -189,18 +191,7 @@ agent:
   max_chat_history: 128000  # Maximum history characters to keep for context
 ```
 
-Example chat history format in the prompt:
-```
-## Recent Conversation
-### User
-What is the capital of France?
----
-### Assistant
-The capital of France is Paris.
----
-```
-
-## Extend agent
+## Extend the agent
 
 Langur Agent can be easily customized and extended by adding new tools, commands, and skills.
 
@@ -239,12 +230,12 @@ Tools are auto-discovered on startup.
 
 The process is very similar to tools. You need to create your method, preferably in `agent/commands.py`, and decorate it with `@cmd(name, description, aliases, examples, can_complete)`.
 
-A slash command must return `ok:bool, msg:str, content:str`:
+A slash command must return, in that order, `ok:bool`, `msg:str`, `content:str`, `markdown:str`:
 
 1. `ok`: a `bool` indicating if the command succeeded or failed.
 2. `msg`: an optional short status message. It is printed with `OK` or `ERROR`.
-3. `content`: an optional `str` with the Python Rich-formatted content.
-4. `markdown`: an optional `str` formatted in Markdown.
+3. `content`: an optional `str` with the Python Rich-formatted content, it is printed to the output.
+4. `markdown`: an optional `str` formatted in Markdown, it is printed to the output.
 
 ```python
 @cmd(

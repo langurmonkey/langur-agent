@@ -1,8 +1,9 @@
-"""Simple file-based memory system.
+"""
+Simple file-based session memory system.
 
 Stores user profile and persistent notes as JSON.
 Follows XDG Base Directory spec:
-- Data: $XDG_DATA_HOME/langur-agent/memory/
+- Data: $XDG_DATA_HOME/langur-agent/session/$SESSION_NAME
 
 Design: memory is buffered in memory. Changes are persisted to disk
 when save() is called. On init, state is loaded from disk.
@@ -25,30 +26,30 @@ _instance = None
 
 
 class Memory:
-    """Persistent memory with in-memory buffering.
+    """Persistent per-session memory with in-memory buffering.
 
     Singleton: all Memory() calls return the same instance, so in-memory
     state is shared between the agent and tool handlers.
     """
 
-    def __new__(cls, max_chat_history=128000, memory_dir=None, session='default'):
+    def __new__(cls, max_chat_history=128000, session_dir=None, session='default'):
         global _instance
         if _instance is None:
             _instance = super().__new__(cls)
         return _instance
 
-    def __init__(self, max_chat_history=128000, memory_dir=None, session='default'):
+    def __init__(self, max_chat_history=128000, session_dir=None, session='default'):
         # Only initialize on first creation
         if hasattr(self, "_initialized"):
             return
 
+        # Session name
         self.session = session
 
-
         # Memory directory:
-        # - if `memory_dir` is present, use that
+        # - if `session_dir` is present, use that
         # - else, use SESSIONS_DIR/session
-        self.session_dir = Path(memory_dir) if memory_dir else  SESSIONS_DIR / session
+        self.session_dir = Path(session_dir) if session_dir else  SESSIONS_DIR / session
         self.session_is_new = not os.path.exists(self.session_dir)
         self.session_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_file = self.session_dir / SESSION_METADATA_FILE
@@ -277,7 +278,7 @@ class ChatMemory:
         # Compact if exceeded
         if self.total_chars > self.max_chars:
             from agent.commands import registry
-            command, _ = registry.lookup(["/memory-compact"])
+            command, _ = registry.lookup(["/session-compact"])
             ok, msg, _, _, _ = registry.execute(self, command, [])
         
         # Persist immediately

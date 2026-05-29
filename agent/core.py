@@ -235,6 +235,9 @@ class Core:
                 stream=True,
             )
         except Exception as e:
+            if prompt_callback:
+                prompt_callback(Stage.STOP)
+
             if error_callback:
                 error_callback(e, f"API connection error. Please, check the endpoint (model={model_name}, base_url={self.client.base_url}): {e}")
             else:
