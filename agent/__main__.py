@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Langur Agent - entry point."""
+"""
+Langur Agent - entry point.
+
+Langur Agent is a simple but powerful AI agent for the Linux and macOS terminal.
+It features sessions, memory management, tools, skills, slash commands, and more.
+"""
 
 import argparse
 import sys
 import traceback
-import os
 
 from importlib.metadata import version as get_version
 from rich import print
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
-from agent.console import console
 from agent import Agent
+from agent.utils import contractuser
+from agent.console import console
 
 # Ensure the project root (parent of agent/) is on the path
 # This handles both pip-installed and direct execution
@@ -55,7 +60,7 @@ def main():
         help='Name of the session to create or continue',
     )
     parser.add_argument(
-        '-ls',
+        '-ls', '--ls',
         action='store_true',
         help='List existing sessions',
     )
@@ -81,14 +86,14 @@ def main():
         import os
         SESSIONS_DIR = xdg_data_home() / "langur-agent" / "sessions"
         sessions = [f for f in os.listdir(SESSIONS_DIR) if os.path.isdir(os.path.join(SESSIONS_DIR, f))]
-        console.print("[accent]Sessions[/accent]:")
+        console.print("Sessions:")
         for sess in sessions:
-            console.print(f"- [bold]{sess}[/bold] - [dim]{os.path.join(SESSIONS_DIR, sess)}[/dim]")
+            console.print(f"- [accent-bold]{sess}[/accent-bold] - [dim]{contractuser(os.path.join(SESSIONS_DIR, sess))}[/dim]")
         return
 
 
     try:
-        agent = Agent(config_path=args.config)
+        agent = Agent(config_path=args.config, session=args.session)
     except Exception as e:
         console.print(f"[err]ERROR:[/err] Agent creation failed: {e}")
         sys.exit(1)

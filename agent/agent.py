@@ -4,18 +4,20 @@ The agent orchestrates the 'user-assistant' turns and delegates the actual turn
 handling to the core.
 """
 
-from xdg_base_dirs import xdg_data_home
 from functools import partial
 
 from rich import box
 from rich.prompt import Prompt
+from rich.table import Table
 from rich.align import Align
 from rich.markdown import Markdown
 from rich.panel import Panel
 
 from agent.core import Core, Stage, TurnCancelled
 from agent.commands import registry
+from agent.utils import contractuser
 from agent.console import console
+
 
 
 # Try to import prompt_toolkit for rich input; fall back to plain input.
@@ -39,8 +41,8 @@ txt_goodbye = "\n[accent-bold]Goodbye![/accent-bold]"
 
 
 class Agent:
-    def __init__(self, config_path=None):
-        self.core = Core(config_path)
+    def __init__(self, config_path=None, session='default'):
+        self.core = Core(config_path, session)
         self.spinner_prompt = None
         self.spinner_thinking = None
 
@@ -131,7 +133,7 @@ class Agent:
         slash_completer = FuzzyWordCompleter(commands)
 
         # History path
-        history_path = xdg_data_home() / "langur-agent" / "history.txt"
+        history_path = self.core.memory.session_dir / "history.txt"
         history_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Toolbar
@@ -180,16 +182,31 @@ class Agent:
         console.print(Panel(title, box=box.HEAVY, border_style="title", subtitle="Monkee at your service!"))
         console.print()
 
+        new_session = self.core.memory.session_is_new
+        session_dir = self.core.memory.session_dir
+        created = self.core.memory.session_created
+        accessed = self.core.memory.session_accessed
+        if new_session:
+            console.print(f"[dim]│[/dim] Session created: [accent-bold]{self.core.memory.session}[/accent-bold]")
+            console.print(f"[dim]│   location: {contractuser(session_dir)}[/dim]")
+            console.print(f"[dim]│   created: {created}[/dim]")
+        else:
+            console.print(f"[dim]│[/dim] Session created: [accent-bold]{self.core.memory.session}[/accent-bold]")
+            console.print(f"[dim]│   location: {contractuser(session_dir)}[/dim]")
+            console.print(f"[dim]│   created: {created}[/dim]")
+            console.print(f"[dim]│   last accessed: {accessed}[/dim]")
+
         # Print history
         chat_history = self.core.memory.get_chat_formatted(num_exchanges=3,
                                                            timestamps=True,
                                                            width=250)
 
-        curr, max, rate = self.core.memory.get_chat_stats()
-        console.print(Panel(Markdown(chat_history),
-                        border_style="output-frame",
-                        title="Previous conversation",
-                        subtitle=f"Previous conversation stats: {curr}/{max} - {rate:.2f}%"))
+        if chat_history:
+            curr, max, rate = self.core.memory.get_chat_stats()
+            console.print(Panel(Markdown(chat_history),
+                            border_style="output-frame",
+                            title="Previous conversation",
+                            subtitle=f"Previous conversation stats: {curr}/{max} - {rate:.2f}%"))
 
         console.print()
 

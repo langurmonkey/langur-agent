@@ -2,7 +2,16 @@
 
 ---
 
-Langur Agent is a simple, open, hackable CLI AI agent for Linux. It supports **tools**, **skills**, and **persistent memory**. It connects to any service providing an OpenAI-compatible endpoint.
+Langur Agent is a simple, open, hackable CLI AI agent for Linux. It connects to any service providing an OpenAI-compatible endpoint. It features:
+
+- **Session management**
+- **Memory management**
+- **Tools**
+- **Skills**
+- **Autocompletion**
+- and much more
+
+The sections of this document are:
 
 - [Quickstart](#quickstart)
 - [Run from source](#run-from-source)
@@ -31,7 +40,7 @@ curl -fsSL https://codeberg.org/langurmonkey/langur-agent/raw/branch/master/inst
 
 ### Running
 
-Run the agent:
+Run the agent with the default session:
 
 ```bash
 langur-agent
@@ -99,7 +108,40 @@ agent:
 
 ## Usage and commands
 
-Run the agent, and then you can enter your prompt. The input is multiline: Use <kbd>Alt</kbd> + <kbd>Enter</kbd> to add a new line. Use <kbd>Enter</kbd> to submit the prompt.
+Run the agent, and then you can enter your prompt. You can use the following key bindings during input:
+
+- <kbd>Alt</kbd> + <kbd>Enter</kbd>: add a new line
+- <kbd>Enter</kbd>: submit the prompt
+- <kbd>Ctrl</kbd> + <kbd>q</kbd>: quit
+
+During inference, you can cancel the turn and return to the input prompt with <kbd>Ctrl</kbd> + <kbd>c</kbd>
+
+### Sessions
+
+Internally, Langur Agent uses sessions to separate different memory histories. Sessions are named by the user. By default, the agent starts in the `default` session. You can start in a different session (either create a new one, or restore it if it exists) with the `--session` argument:
+
+```bash
+# Start in a specific session
+langur-agent --session my-project
+```
+
+You can also list the existing sessions:
+
+```bash
+uv run langur-agent --ls           
+Sessions:
+- my-project - ~/.local/share/langur-agent/sessions/my-project
+- default - ~/.local/share/langur-agent/sessions/default
+```
+
+Sessions contain:
+
+- The input history
+- Chat memory
+- Notes
+- User profile
+
+For now, the configuration file is the same for all sessions.
 
 ### `vi` mode
 

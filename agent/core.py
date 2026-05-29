@@ -20,7 +20,7 @@ from agent.skills import SkillLoader
 from agent.tools import get_tool_schemas, execute_tool
 
 class TurnCancelled(Exception):
-    """Raised when the user cancels an LLM turn mid-stream."""
+    """Raised when the user cancels an LLM turn during inference."""
     pass
 
 class Stage(Enum):
@@ -31,7 +31,7 @@ class Stage(Enum):
 class Core:
     """Agent core, which manages tools, skills, memory, and API communication."""
 
-    def __init__(self, config_path=None):
+    def __init__(self, config_path=None, session='default'):
         self.config = get_config()
         self.config.load(config_path)
 
@@ -46,7 +46,7 @@ class Core:
         self.markdown = self.config.get("agent.markdown", False)
 
         # Initialize subsystems
-        self.memory = Memory(max_chat_history=max_chat_history)
+        self.memory = Memory(max_chat_history=max_chat_history, session=session)
         self.skills = SkillLoader()
 
         # Conversation history

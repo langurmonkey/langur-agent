@@ -10,12 +10,15 @@ when save() is called. On init, state is loaded from disk.
 
 import json
 import datetime
+import os
+
 from textwrap import shorten
 from rich.markup import escape
 from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
-DEFAULT_MEMORY_DIR = xdg_data_home() / "langur-agent" / "sessions" / "default"
+SESSIONS_DIR = xdg_data_home() / "langur-agent" / "sessions"
+SESSION_METADATA_FILE = ".session-metadata"
 
 # Singleton instance
 _instance = None
@@ -28,21 +31,62 @@ class Memory:
     state is shared between the agent and tool handlers.
     """
 
-    def __new__(cls, max_chat_history=128000, memory_dir=None):
+    def __new__(cls, max_chat_history=128000, memory_dir=None, session='default'):
         global _instance
         if _instance is None:
             _instance = super().__new__(cls)
         return _instance
 
-    def __init__(self, max_chat_history=128000, memory_dir=None):
+    def __init__(self, max_chat_history=128000, memory_dir=None, session='default'):
         # Only initialize on first creation
         if hasattr(self, "_initialized"):
             return
-        self.memory_dir = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
-        self.memory_dir.mkdir(parents=True, exist_ok=True)
-        self._user_profile_path = self.memory_dir / "user_profile.json"
-        self._notes_path = self.memory_dir / "notes.json"
-        self._chat_history = ChatMemory(max_chars=max_chat_history, memory_dir=self.memory_dir)
+
+        self.session = session
+
+
+        # Memory directory:
+        # - if `memory_dir` is present, use that
+        # - else, use SESSIONS_DIR/session
+        self.session_dir = Path(memory_dir) if memory_dir else  SESSIONS_DIR / session
+        self.session_is_new = not os.path.exists(self.session_dir)
+        self.session_dir.mkdir(parents=True, exist_ok=True)
+        self.metadata_file = self.session_dir / SESSION_METADATA_FILE
+        metadata_exists = os.path.exists(self.metadata_file)
+        now = datetime.datetime.now()
+        if self.session_is_new or not metadata_exists:
+            # New session or file does not exist
+            self.session_created = now
+            self.session_accessed = now
+            # Write 'created' and 'accessed'
+            with open(self.metadata_file, 'w') as file:
+                file.write(f"created: {now.isoformat()}\naccessed: {now.isoformat()}")
+
+        elif metadata_exists:
+            # Restored session
+            # Read 'created' and 'accessed'
+            with open(self.metadata_file, 'r') as file:
+                try:
+                    lines = [line for line in file]
+                    created = lines[0].split()[1]
+                    accessed = lines[1].split()[1]
+                    self.session_created = datetime.datetime.fromisoformat(created)
+                    self.session_accessed = datetime.datetime.fromisoformat(accessed)
+                except Exception:
+                    self.session_created = None
+                    self.session_accessed = None
+            # Update 'accessed'
+            if self.session_created:
+                # Write 'created' and 'accessed'
+                with open(self.metadata_file, 'w') as file:
+                    file.write(f"created: {self.session_created.isoformat()}\naccessed: {now.isoformat()}")
+        else:
+            raise RuntimeError("Invalid session state: new session but metadata already exists?")
+            
+
+        self._user_profile_path = self.session_dir / "user_profile.json"
+        self._notes_path = self.session_dir / "notes.json"
+        self._chat_history = ChatMemory(max_chars=max_chat_history, memory_dir=self.session_dir)
 
         # Load from disk into memory buffers
         self._user_profile = self._load_json(self._user_profile_path, {})
