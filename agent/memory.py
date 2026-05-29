@@ -143,16 +143,19 @@ class Memory:
         self._notes.append(note)
         return note
 
-    def get_formatted(self):
+    def get_formatted(self, user_profile=True, notes=True):
         """Return all memory formatted for the system prompt."""
         lines = []
 
-        if self._user_profile:
+        if not user_profile and not notes:
+            return ""
+
+        if user_profile and self._user_profile:
             lines.append("## User Profile")
             for key, value in self._user_profile.items():
                 lines.append(f"- {key}: {value}")
 
-        if self._notes:
+        if notes and self._notes:
             lines.append("\n## Persistent Notes")
             for note in self._notes:
                 lines.append(f"- [{note['category']}] {note['content']}")

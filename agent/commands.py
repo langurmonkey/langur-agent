@@ -423,6 +423,7 @@ def _cmd_models(agent, params):
 
     try:
         agent.core.set_model(result)
+        agent._create_prompt_session()
     except NameError as e:
         return False, f"{e}", None, None
         

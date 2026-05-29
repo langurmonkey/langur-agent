@@ -89,7 +89,8 @@ class Core:
         parts = [self.system_prompt]
 
         # Add formatted memory
-        memory_text = self.memory.get_formatted()
+        # Only user profile, no notes
+        memory_text = self.memory.get_formatted(notes=False)
         if memory_text:
             parts.append(memory_text)
 
