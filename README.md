@@ -13,7 +13,9 @@ Langur Agent is a simple, open, hackable CLI AI agent for Linux and macOS. It co
 - interactive configuration
 - and much more
 
-[![asciicast](https://asciinema.org/a/8cTlvnN0qFeyflLH.svg)](https://asciinema.org/a/8cTlvnN0qFeyflLH)
+<p align="center">
+<a href="https://asciinema.org/a/8cTlvnN0qFeyflLH" target="_blank"><img src="https://asciinema.org/a/8cTlvnN0qFeyflLH.svg" width="60%"/></a>
+</p>
 
 The sections of this document are:
 
@@ -62,12 +64,6 @@ echo "OPENAI_API_KEY=your-api-key-here" > .env
 ```
 
 > The agent uses `python-dotenv` to load `.env` at startup. The `openai` package reads `OPENAI_API_KEY` from the environment automatically. You can also set `OPENAI_API_KEY` in your shell profile.
-
-<p align="center">
-<img src="screenshot.jpg" 
-        alt="Welcome window"
-        style="display: block; margin: 0 auto" />
-</p>
 
 
 ## Run from source
