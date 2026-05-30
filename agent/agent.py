@@ -274,11 +274,11 @@ class Agent:
 
                         # Short status message
                         if msg:
-                            console.print(f"[ok]✓[/]: {msg}")
+                            console.print(f"[ok]✓[/] {msg}")
                         console.print()
                     else:
                         if msg:
-                            console.print(f"[err]⨯[/]: {msg}")
+                            console.print(f"[err]⨯[/] {msg}")
                 else:
                     console.print(f"[err]⨯[/] command not found: {user_input}")
                     
